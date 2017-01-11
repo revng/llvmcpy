@@ -10,7 +10,7 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='llvmcpy',
-    version='0.1.0',
+    version='0.1.1',
     description='Python bindings for LLVM auto-generated from the LLVM-C API',
     long_description=long_description,
     url='https://rev.ng/llvmcpy',
