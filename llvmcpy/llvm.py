@@ -148,10 +148,10 @@ def create_function(library, name, prototype,
     # If the method starts with get_ or set_ also create the appropriate
     # property
     if is_class_method:
-        if method_name.startswith("get_"):
+        if method_name.startswith("get_") and len(function_arguments) == 0:
             properties[method_name[4:]] = ((name, method_name),
                                            properties[method_name[4:]][1])
-        elif method_name.startswith("set_"):
+        elif method_name.startswith("set_") and len(function_arguments) == 1:
             properties[method_name[4:]] = (properties[method_name[4:]][0],
                                            (name, method_name))
 
