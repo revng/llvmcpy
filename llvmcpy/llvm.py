@@ -468,6 +468,7 @@ def generate_wrapper():
 
     classes = defaultdict(list)
     global_functions = []
+    constants = []
 
     # Loop over all the LLVM libraries
     for _, library_name, library in libs:
@@ -480,6 +481,9 @@ def generate_wrapper():
                 field = getattr(library, name)
             except AttributeError:
                 fail = True
+
+            if not fail and type(field) is int:
+                constants.append((name, field))
 
             # Is this a usable function?
             if not fail and isinstance(field, FFI.CData):
@@ -518,7 +522,8 @@ class LLVMException(Exception):
     pass
 """)
         for library_path, library_name, library in libs:
-            write("""{} = ffi.dlopen("{}")""".format(library_name, library_path))
+            write("""{} = ffi.dlopen("{}")""".format(library_name,
+                                                     library_path))
 
             # Create all the classes
         for key, value in classes.items():
@@ -577,6 +582,12 @@ class {}(object):
         write("\nif True:")
         for library, name, prototype in global_functions:
             write(create_function(library, name, prototype))
+
+        # Print numeric constants
+        for name, value in constants:
+            if name.startswith("LLVM") and not name.startswith("LLVM_"):
+                name = name[4:]
+            write("{} = {}".format(name, str(value)))
 
 llvm_config = env("LLVM_CONFIG","llvm-config")
 
