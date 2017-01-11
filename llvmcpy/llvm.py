@@ -94,7 +94,8 @@ def create_function(library, name, prototype,
     # employed to return textual error messages
     out_strings = []
 
-    for index, arg_type in enumerate(prototype.args[skip_args:]):
+    effective_arguments = prototype.args[skip_args:]
+    for index, arg_type in enumerate(effective_arguments):
         if arg_type.kind == "pointer":
             pointee = arg_type.item
             if (pointee.kind == "pointer" and pointee.item.kind == "struct"
@@ -140,7 +141,7 @@ def create_function(library, name, prototype,
 
     # Build arguments for the function call
     function_arguments = ["arg" + str(x)
-                          for x in range(len(prototype.args) - skip_args)]
+                          for x in range(len(effective_arguments))]
 
     # Compute pythonic name
     method_name = normalize_name(class_name, name[4:])
@@ -158,7 +159,9 @@ def create_function(library, name, prototype,
     # Function to compute header of the generated function
     def header():
         zeroth_argument = ["self"] if is_class_method else []
-        function_arguments_str = ", ".join(zeroth_argument + function_arguments)
+        # Discard None arguments, they have been removed
+        args = filter(lambda x: x is not None, function_arguments)
+        function_arguments_str = ", ".join(zeroth_argument + args)
         return ("""
     def {}({}):
         """ + "\"\"\"See {}\"\"\"\n").format(method_name,
@@ -174,25 +177,49 @@ def create_function(library, name, prototype,
     # Prepare creation of the function body handling special cases
     return_type = prototype.result
 
-    # Special case: the function returns a boolean and has a single LLVM object
-    # out argument. In this case we will remove the out argument, create a
-    # temporary object and return in it. More over in case of error we'll throw
-    # an exception, possibly with an appropriate error message.
+    # Look for pairs of pointer to LLVM objects followed by an integer: they
+    # often represent pointer-to-first-element + length pairs describing an
+    # array of LLVM objects.
+    for out_arg in out_args:
+        # If it's not the last argument and the next is an integer
+        if ((len(effective_arguments) > out_arg + 1)
+            and (effective_arguments[out_arg + 1].kind == "primitive")
+            and (effective_arguments[out_arg + 1].cname == "unsigned int")):
+
+            # Replace the argument with the lenght of the previous argument
+            arguments[out_arg + 1] = "len(arg{})".format(out_arg)
+
+            # Remove the function argument, we know how to compute it
+            function_arguments[out_arg + 1] = None
+
+
+    # Special case: the function returns a boolean and has either a single LLVM
+    # object out argument or an out string argument. In this case we will remove
+    # the out argument (if present), create a temporary object and return in
+    # it. More over in case of error we'll throw an exception, possibly with an
+    # appropriate error message.
+    has_out_arg = len(out_args) == 1
+    has_error_message = ((len(out_strings) == 1)
+                         and (out_strings[0] == len(arguments) - 1))
+
     if (return_type.kind == "primitive"
         and return_type.cname == "int"
-        and len(out_args) == 1):
+        and (has_out_arg or has_error_message)):
 
-        # Get the index of the out argument
-        out_arg = out_args[0]
+        # Has an out LLVM object, we will create a temporary object, pass it to
+        # the function and then return it
+        if has_out_arg:
+            # Get the index of the out argument
+            out_arg = out_args[0]
 
-        # Replace the out argument with a temporary object we're going to return
-        arguments[out_arg] = "result.out_ptr()"
+            # Replace the out argument with a temporary object we're going to
+            # return
+            arguments[out_arg] = "result.out_ptr()"
 
-        # Remove the out argument from the function prototype
-        del function_arguments[out_arg]
+            # Remove the out argument from the function prototype
+            function_arguments[out_arg] = None
 
-        # Special case: there's an out string argument
-        has_error_message = len(out_strings) == 1
+        # There's an out string argument: it's the error message
         if has_error_message:
             # Take its index
             str_arg = out_strings[0]
@@ -201,9 +228,7 @@ def create_function(library, name, prototype,
             arguments[str_arg] = "error_str"
 
             # Remove the argument from the function prototype
-            del function_arguments[str_arg
-                                   if str_arg < out_arg
-                                   else str_arg - 1]
+            function_arguments[str_arg] = None
 
         # Print the function header
         result += header()
@@ -215,13 +240,17 @@ def create_function(library, name, prototype,
             result += """        error_str = ffi.new("char **")""" + "\n"
             error_message = "ffi.string(error_str[0])"
 
-        # Print the function body: first create a temporary object we will
-        # return, then call the function replacing the out argument with that
-        # object, take the boolean result and if there's an error throw an
-        # exception
-        result_type = prototype.args[out_arg + skip_args].item.item.cname
-        result_type = remove_llvm_prefix(result_type)
-        result += """        result = {}()
+        result_type = "None"
+        if has_out_arg:
+            # Print the function body: first create a temporary object we will
+            # return, then call the function replacing the out argument with
+            # that object, take the boolean result and if there's an error throw
+            # an exception
+            result_type = prototype.args[out_arg + skip_args].item.item.cname
+            result_type = remove_llvm_prefix(result_type)
+            result_type += "()"
+
+        result += """        result = {}
         failure = {}
         if failure != 0:
             raise LLVMException({})
