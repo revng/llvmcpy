@@ -94,15 +94,18 @@ def create_function(library, name, prototype,
     # employed to return textual error messages
     out_strings = []
 
-
     for index, arg_type in enumerate(prototype.args[skip_args:]):
         if arg_type.kind == "pointer":
             pointee = arg_type.item
             if (pointee.kind == "pointer" and pointee.item.kind == "struct"
                 and is_llvm_type(pointee.item.cname)):
                 # LLVM object **: the function is returning a reference to an
-                # object
-                arguments.append("arg{}.out_ptr()".format(index))
+                # object or it's an array
+                arguments.append(("([x.in_ptr() for x in arg{}] "
+                                  + "if type(arg{}) is list "
+                                  + "else arg{}.out_ptr())").format(index,
+                                                                    index,
+                                                                    index))
                 out_args.append(index)
             elif (pointee.kind == "pointer" and pointee.item.kind == "primitive"
                   and pointee.item.cname == "char"):
