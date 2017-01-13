@@ -466,6 +466,9 @@ def generate_wrapper():
 
     libs, ffi_code = parse_headers()
 
+    if len(libs) == 0:
+        raise ValueError("No valid LLVM libraries found, LLVM must be built with BUILD_SHARED_LIBS")
+
     classes = defaultdict(list)
     global_functions = []
     constants = []
