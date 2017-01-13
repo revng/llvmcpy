@@ -343,7 +343,7 @@ def clean_include_file(in_path):
     """Clean the LLVM-C API headers files for parsing by CFFI: remove standard
     includes and static inline functions"""
     out_path = in_path + ".filtered"
-    with open(in_path, "r") as in_file, open(out_path, "w") as out_file:
+    with open(in_path, "rt") as in_file, open(out_path, "wt") as out_file:
         skip_block = False
         for line in in_file:
             skip = False
@@ -416,7 +416,7 @@ def parse_headers():
         all_c_path = os.path.join(temp_directory, "all.c")
         all_includes = "#include \""
         all_includes += "\"\n#include \"".join(include_files) + "\""
-        with open(all_c_path, "w") as all_c:
+        with open(all_c_path, "wt") as all_c:
             all_c.write("typedef long unsigned int size_t;\n")
             all_c.write("typedef int off_t;\n")
             all_c.write(all_includes + "\n")
@@ -431,12 +431,12 @@ def parse_headers():
                                all_c_path])
 
         # Let CFFI parse the preprocessed header
-        ffi.cdef(open(all_c_preprocessed).read(), override=True)
+        ffi.cdef(open(all_c_preprocessed, 'rt').read(), override=True)
 
         # Compile the CFFI data and save them so we can return it
         ffi.set_source("ffi", None)
         ffi.compile(temp_directory)
-        ffi_code = open(os.path.join(temp_directory, "ffi.py"), "r").read()
+        ffi_code = open(os.path.join(temp_directory, "ffi.py"), "rt").read()
 
     finally:
         # Cleanup
@@ -513,7 +513,7 @@ def generate_wrapper():
                 if not [1 for x in global_functions if x[1] == name]:
                     global_functions.append((library_name, name, prototype))
 
-    with open(output_path, "w") as output_file:
+    with open(output_path, "wt") as output_file:
         def write(string):
             output_file.write(string + "\n")
 
