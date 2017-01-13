@@ -456,6 +456,13 @@ def parse_headers():
 
     return list(libs), ffi_code
 
+def _verify_output(output_filename):
+    from py_compile import compile, PyCompileError
+    try:
+        compile(output_filename, doraise=True)
+    except PyCompileError as e:
+        raise ValueError('Wrapper generation failed')
+
 def generate_wrapper():
     """Force the (re-)generation of the wrapper module for the current LLVM
     installation"""
@@ -592,20 +599,28 @@ class {}(object):
                 name = name[4:]
             write("{} = {}".format(name, str(value)))
 
-llvm_config = env("LLVM_CONFIG","llvm-config")
+    _verify_output(output_path)
 
-cache_dir = env("XDG_CACHE_DIR", os.path.join(os.environ["HOME"], ".cache"))
-cache_dir = os.path.join(cache_dir, "llvmcpy")
-version = run_llvm_config(["--version"])
-to_hash = llvm_config.encode("utf-8")
-hasher = hashlib.sha256()
-hasher.update(to_hash)
-cache_dir = os.path.join(cache_dir, hasher.hexdigest() + "-" + version)
-cached_module = os.path.join(cache_dir, "llvmcpyimpl.py")
-if not os.path.exists(cached_module):
-    if not os.path.exists(cache_dir):
-        os.makedirs(cache_dir)
-    generate_wrapper()
-sys.path.insert(0, cache_dir)
-from llvmcpyimpl import *
-del sys.path[0]
+
+if __name__ == '__main__':
+    llvm_config = env("LLVM_CONFIG","llvm-config")
+
+    cache_dir = env("XDG_CACHE_DIR", os.path.join(os.environ["HOME"], ".cache"))
+    cache_dir = os.path.join(cache_dir, "llvmcpy")
+    version = run_llvm_config(["--version"])
+    to_hash = llvm_config.encode("utf-8")
+    hasher = hashlib.sha256()
+    hasher.update(to_hash)
+    cache_dir = os.path.join(cache_dir, hasher.hexdigest() + "-" + version)
+    cached_module = os.path.join(cache_dir, "llvmcpyimpl.py")
+    if not os.path.exists(cached_module):
+        if not os.path.exists(cache_dir):
+            os.makedirs(cache_dir)
+        try:
+            generate_wrapper()
+        except:
+            os.unlink(cached_module)
+            raise
+    sys.path.insert(0, cache_dir)
+    from llvmcpyimpl import *
+    del sys.path[0]
