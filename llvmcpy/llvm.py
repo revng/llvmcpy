@@ -161,7 +161,7 @@ def create_function(library, name, prototype,
         zeroth_argument = ["self"] if is_class_method else []
         # Discard None arguments, they have been removed
         args = filter(lambda x: x is not None, function_arguments)
-        function_arguments_str = ", ".join(zeroth_argument + args)
+        function_arguments_str = ", ".join(zeroth_argument + list(args))
         return ("""
     def {}({}):
         """ + "\"\"\"See {}\"\"\"\n").format(method_name,
