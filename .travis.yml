@@ -1,0 +1,34 @@
+sudo: required
+dist: trusty
+language: python
+python:
+  - "2.7"
+  - "3.3"
+  - "3.4"
+  - "3.5"
+  - "3.5-dev"
+  - "3.6"
+  - "3.6-dev"
+  - "3.7-dev"
+  - "nightly"
+  - "pypy"
+
+addons:
+  apt:
+    packages:
+    - libllvm3.5
+    - llvm3.5
+
+# on travis, clang-3.5 in /usr/local includes an llvm-config
+#   that comes earlier in the path than the system llvm
+env:
+    - LLVM_CONFIG=/usr/bin/llvm-config
+
+before_install:
+    - dpkg -L libllvm3.5
+    - which llvm-config
+    - llvm-config --libdir
+    - rm -rf ~/.cache/
+install: "pip install -e ."
+script:
+    - python setup.py test
