@@ -545,10 +545,14 @@ class {}(object):
             self.ptr[0] = value
 
     def in_ptr(self):
+        if self.ptr[0] == ffi.NULL:
+            raise RuntimeError("in_ptr called on uninitialized object")
         return self.ptr[0]
 
     def out_ptr(self):
-        assert self.ptr[0] == ffi.NULL
+        if self.ptr[0] != ffi.NULL:
+            raise RuntimeError(("Passing an already initialized object as an " +
+                                "out parameter"))
         return self.ptr""".format(class_name, key))
 
             # Create a dictionary for properties create function will populate
