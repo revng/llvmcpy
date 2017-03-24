@@ -26,6 +26,6 @@ setup(
     ],
     keywords='llvm',
     packages=['llvmcpy'],
-    install_requires=['cffi>=1.0.0'],
+    install_requires=['cffi>=1.0.0', 'pycparser'],
     test_suite="llvmcpy.test.TestSuite",
 )
