@@ -55,5 +55,9 @@ class TestSuite(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             get_non_existing_basic_block(module_source)
 
+    def test_resolve_enums(self):
+        assert llvm.Opcode[llvm.Switch] == 'Switch'
+        assert llvm.Opcode['Switch'] == llvm.Switch
+
 if __name__ == '__main__':
     unittest.main()
