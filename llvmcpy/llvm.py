@@ -9,6 +9,8 @@ import shutil
 import fnmatch
 import re
 import hashlib
+import cffi
+import pycparser
 from cffi import FFI
 from glob import glob
 from collections import defaultdict
@@ -438,6 +440,9 @@ def parse_headers():
         ffi.compile(temp_directory)
         ffi_code = open(os.path.join(temp_directory, "ffi.py"), "r").read()
 
+        # Parse enum definitions
+        enums = parse_enums(all_c_preprocessed)
+
     finally:
         # Cleanup
         shutil.rmtree(temp_directory)
@@ -454,7 +459,62 @@ def parse_headers():
                map(basename, lib_files),
                map(ffi.dlopen, lib_files))
 
-    return list(libs), ffi_code
+    return list(libs), ffi_code, enums
+
+def parse_enums(all_c_preprocessed):
+    """
+    Parse enum typedefs and return a dictionary mapping from typedefs to values
+    as well as from values to the integer representation of the enum.
+
+    Returns a dict with the following structure (example):
+    {
+        "Opcode": {1: 'Ret', 2: 'Br', ..., 'Ret': 1, 'Br': 2, ...},
+        "Visibility": {0: 'DefaultVisibility', ..., 'DefaultVisibility': 0, ...},
+        ...
+    }
+
+    """
+    def remove_prefix(name):
+        if name.startswith("LLVM") and not name.startswith("LLVM_"):
+            return name[4:]
+
+    class EnumVisitor(pycparser.c_ast.NodeVisitor):
+        def __init__(self):
+            self._name = None
+            self.enums = {}
+
+        def visit_Typedef(self, typedef):
+            self._name = remove_prefix(typedef.name)
+            self.generic_visit(typedef)
+
+        def visit_EnumeratorList(self, enum_list):
+            # Check if we are in a typedef scope
+            if self._name is not None:
+                value = 0
+                mapping = {}
+                for enum in enum_list.enumerators:
+                    # Check if enum has defined a value
+                    if enum.value is not None:
+                        value = int(enum.value.value, 0)
+                    name = remove_prefix(enum.name)
+                    mapping[value] = name
+                    # Add reverse lookup as well, ignoring aliases
+                    if name not in mapping:
+                        mapping[name] = value
+                    value += 1
+
+                self.enums[self._name] = mapping
+
+                # Clear the scope
+                self._name = None
+
+    with open(all_c_preprocessed) as f:
+        ast, _, _ = cffi.cparser.Parser()._parse(f.read())
+
+    visitor = EnumVisitor()
+    visitor.visit(ast)
+
+    return visitor.enums
 
 def generate_wrapper():
     """Force the (re-)generation of the wrapper module for the current LLVM
@@ -464,7 +524,7 @@ def generate_wrapper():
     output_path = cached_module
     ffi = FFI()
 
-    libs, ffi_code = parse_headers()
+    libs, ffi_code, enums = parse_headers()
 
     if len(libs) == 0:
         raise ValueError("No valid LLVM libraries found' \
@@ -596,6 +656,13 @@ class {}(object):
             if name.startswith("LLVM") and not name.startswith("LLVM_"):
                 name = name[4:]
             write("{} = {}".format(name, str(value)))
+
+        # Print enum conversion methods
+        for name, values in enums.items():
+            write(
+"""
+{} = {}
+""".format(name, values))
 
 llvm_config = env("LLVM_CONFIG","llvm-config")
 
