@@ -1,0 +1,40 @@
+dist: trusty
+language: python
+python:
+  - "2.7"
+  - "3.5"
+
+addons:
+  apt:
+    sources:
+      - sourceline: "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-3.4 main"
+        key_url: "http://apt.llvm.org/llvm-snapshot.gpg.key"
+      - sourceline: "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-3.5 main"
+      - sourceline: "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-3.6 main"
+      - sourceline: "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-3.7 main"
+      - sourceline: "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-3.8 main"
+      - sourceline: "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-3.9 main"
+      - sourceline: "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-4.0 main"
+    packages:
+    - llvm-3.4-dev
+    - llvm-3.5-dev
+    - llvm-3.6-dev
+    - llvm-3.7-dev
+    - llvm-3.8-dev
+    - llvm-3.9-dev
+    - llvm-4.0-dev
+
+# on travis, clang-3.5 in /usr/local includes an llvm-config
+#   that comes earlier in the path than the system llvm
+env:
+  - LLVM_CONFIG=/usr/bin/llvm-config-3.4
+  - LLVM_CONFIG=/usr/bin/llvm-config-3.5
+  - LLVM_CONFIG=/usr/bin/llvm-config-3.6
+  - LLVM_CONFIG=/usr/bin/llvm-config-3.7
+  - LLVM_CONFIG=/usr/bin/llvm-config-3.8
+  - LLVM_CONFIG=/usr/bin/llvm-config-3.9
+  - LLVM_CONFIG=/usr/bin/llvm-config-4.0
+
+install: "pip install -e ."
+script:
+  - python setup.py test
