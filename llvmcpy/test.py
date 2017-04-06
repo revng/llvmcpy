@@ -51,12 +51,20 @@ class TestSuite(unittest.TestCase):
         self.assertEqual(get_function_number(module_source), 3)
 
     def test_null_ptr(self):
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(AttributeError):
             get_non_existing_basic_block(module_source)
 
     def test_resolve_enums(self):
         assert llvm.Opcode[llvm.Switch] == 'Switch'
         assert llvm.Opcode['Switch'] == llvm.Switch
+
+    def test_translate_null_ptr_to_none(self):
+        module = load_module(module_source)
+        first_function = list(module.iter_functions())[0]
+        first_basic_block = list(first_function.iter_basic_blocks())[0]
+        first_instruction = first_basic_block.first_instruction
+
+        assert first_instruction.is_a_binary_operator() is None
 
 if __name__ == '__main__':
     unittest.main()

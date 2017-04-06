@@ -321,7 +321,7 @@ def create_function(library, name, prototype,
     def iter_{}s(self):
         {}
         next = self.{}()
-        while not (next.ptr[0] == ffi.NULL):
+        while next is not None:
             yield next
             next = next.{}()""".format(normalize_name(class_name,
                                                       iterated_name),
@@ -597,10 +597,16 @@ class LLVMException(Exception):
             # object: when a pointer is passed to a function use `in_ptr` (which
             # dereferences it), when you want to use it as an out argument using
             # `out_ptr` instead (which returns a **)
-            write("""
-class {}(object):
+            write(
+"""
+class {class_name}(object):
+    def __new__(cls, value=None):
+        if value == ffi.NULL:
+            return None
+        return super({class_name}, cls).__new__(cls)
+
     def __init__(self, value=None):
-        self.ptr = ffi.new("{} **")
+        self.ptr = ffi.new("{key} **")
         if value is not None:
             self.ptr[0] = value
 
@@ -613,7 +619,7 @@ class {}(object):
         if self.ptr[0] != ffi.NULL:
             raise RuntimeError(("Passing an already initialized object as an " +
                                 "out parameter"))
-        return self.ptr""".format(class_name, key))
+        return self.ptr""".format(class_name=class_name, key=key))
 
             # Create a dictionary for properties create function will populate
             # it
