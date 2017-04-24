@@ -66,5 +66,12 @@ class TestSuite(unittest.TestCase):
 
         assert first_instruction.is_a_binary_operator() is None
 
+    def test_sized_string_return(self):
+        string = "a\0b\0c"
+        value = llvm.md_string(string, len(string))
+        self.assertEqual(value.get_md_string(), string)
+        self.assertEqual(value.get_md_string(encoding=None), string.encode('ascii'))
+
+
 if __name__ == '__main__':
     unittest.main()

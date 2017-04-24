@@ -178,6 +178,7 @@ def create_function(library, name, prototype,
 
     # Prepare creation of the function body handling special cases
     return_type = prototype.result
+    last_arg = effective_arguments[-1] if effective_arguments else None
 
     # Look for pairs of pointer to LLVM objects followed by an integer: they
     # often represent pointer-to-first-element + length pairs describing an
@@ -257,6 +258,30 @@ def create_function(library, name, prototype,
         if failure != 0:
             raise LLVMException({})
         return result""".format(result_type, call(), error_message)
+    elif (return_type.kind == "pointer"
+          and return_type.item.kind == "primitive"
+          and return_type.item.cname == "char"
+          and last_arg and last_arg.kind == "pointer"
+          and last_arg.item.kind == "primitive"
+          and last_arg.item.cname in unsigned_ints):
+        # Special case: the function returns a string and
+        # the last argument is a pointer to an unsigned int/long:
+        # This often represents returning a string (that may contain
+        # NUL characters) with a length
+        function_arguments[-1] = 'encoding="utf-8"'
+        arguments[-1] = "length_buffer"
+        # Print function header
+        result += header()
+        # Print the function body: first create a buffer for the length, then
+        # call the function and build the string return value from the
+        # returned char pointer and the length
+        result += """        length_buffer = ffi.new("{}[1]")
+        ptr = {}
+        length = length_buffer[0]
+        byteresult = ffi.unpack(ptr, length)
+        return byteresult.decode(encoding) if encoding else byteresult
+        """.format(last_arg.item.cname, call())
+
     else:
         # Regular case
 
@@ -669,6 +694,8 @@ class {class_name}(object):
 """
 {} = {}
 """.format(name, values))
+
+unsigned_ints = set(("unsigned", "unsigned int", "unsigned long"))
 
 llvm_config = env("LLVM_CONFIG","llvm-config")
 
