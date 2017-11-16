@@ -9,6 +9,7 @@ import shutil
 import fnmatch
 import re
 import hashlib
+import appdirs
 import cffi
 import pycparser
 from cffi import FFI
@@ -672,8 +673,7 @@ class {class_name}(object):
 
 llvm_config = env("LLVM_CONFIG","llvm-config")
 
-cache_dir = env("XDG_CACHE_DIR", os.path.join(os.environ["HOME"], ".cache"))
-cache_dir = os.path.join(cache_dir, "llvmcpy")
+cache_dir = appdirs.user_cache_dir('llvmcpy')
 version = run_llvm_config(["--version"])
 to_hash = llvm_config.encode("utf-8")
 hasher = hashlib.sha256()
