@@ -11,10 +11,16 @@ import re
 import hashlib
 import appdirs
 import cffi
+import errno
 import pycparser
 from cffi import FFI
 from glob import glob
 from collections import defaultdict
+
+
+class LLVMError(Exception):
+    pass
+
 
 def is_llvm_type(name):
     return name.startswith("struct LLVM")
@@ -336,7 +342,12 @@ env = os.environ.get
 
 def run_llvm_config(args):
     global llvm_config
-    return subprocess.check_output([llvm_config] + args).decode("utf-8").strip()
+    try:
+        return subprocess.check_output([llvm_config] + args).decode("utf-8").strip()
+    except OSError as e:
+        if e.errno == errno.ENOENT:
+            raise LLVMError('llvm-config not found in PATH')
+        raise
 
 header_blacklist = ["llvm/Support/DataTypes.h",
                     "stddef.h",
@@ -672,9 +683,9 @@ class {class_name}(object):
 """.format(name, values))
 
 llvm_config = env("LLVM_CONFIG","llvm-config")
+version = run_llvm_config(["--version"])
 
 cache_dir = appdirs.user_cache_dir('llvmcpy')
-version = run_llvm_config(["--version"])
 to_hash = llvm_config.encode("utf-8")
 hasher = hashlib.sha256()
 hasher.update(to_hash)
