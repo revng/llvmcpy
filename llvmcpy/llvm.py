@@ -387,8 +387,7 @@ def parse_headers():
         if os.path.exists(clang_path):
             cpp = clang_path
         else:
-            sys.stderr.write("Couldn't find a C preprocessor")
-            sys.exit(-1)
+            raise RuntimeError("Couldn't find a C preprocessor.")
 
     # Take the list of LLVM libraries
     lib_files = glob(os.path.join(run_llvm_config(["--libdir"]), "libLLVM*.so"))
