@@ -378,8 +378,9 @@ def parse_headers():
 
     # Identify the C preprocessor
     # TODO: this is the only non-portable part of the code
-    cpp = env("CPP", "cpp")
-    if (not os.path.exists(cpp)
+    cpp = env("CPP")
+    if (not cpp
+        or not os.path.exists(cpp)
         and not [1 for p in os.environ["PATH"].split(":")
                  if os.path.exists(os.path.join(p, cpp))]):
         llvm_bin_dir = run_llvm_config(["--bindir"])
