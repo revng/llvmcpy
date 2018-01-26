@@ -376,16 +376,21 @@ def parse_headers():
     """Parse the header files of the LLVM-C API and produce a list of libraries
     and the CFFI cached data"""
 
+    def in_path(arg):
+        return os.path.exists(arg) or len([1 for p in os.environ["PATH"].split(":")
+            if p and os.path.exists(os.path.join(p, arg))]) > 0
+
     # Identify the C preprocessor
     # TODO: this is the only non-portable part of the code
-    cpp = env("CPP", "cpp")
-    if (not os.path.exists(cpp)
-        and not [1 for p in os.environ["PATH"].split(":")
-                 if os.path.exists(os.path.join(p, cpp))]):
+    cpp = env("CPP")
+    if (not cpp or not in_path(cpp)):
+        # This is the default
         llvm_bin_dir = run_llvm_config(["--bindir"])
         clang_path = os.path.join(llvm_bin_dir, "clang")
         if os.path.exists(clang_path):
             cpp = clang_path
+        elif (not cpp and in_path('cpp')):
+            cpp = 'cpp'
         else:
             raise RuntimeError("Couldn't find a C preprocessor.")
 
