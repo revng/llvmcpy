@@ -14,7 +14,30 @@ import cffi
 import pycparser
 from cffi import FFI
 from glob import glob
+from itertools import chain
 from collections import defaultdict
+from shutilwhich import which
+
+def run_llvm_config(args):
+    """Invoke llvm-config with the specified arguments and return the output"""
+
+    global llvm_config
+    return subprocess.check_output([llvm_config] + args).decode("utf-8").strip()
+
+def find_program(env_variable, names):
+    """Find an executable in the env_variable environment variable or in PATH in
+    with one of the names in the argument names."""
+
+    global search_paths
+    for name in chain([os.environ.get(env_variable, "")], names):
+        path = which(name, path=search_paths)
+        if path:
+            return path
+
+    raise RuntimeError("Couldn't find "
+                       + env_variable
+                       + " or any of the following executables in PATH: "
+                       + " ".join(names))
 
 def is_llvm_type(name):
     return name.startswith("struct LLVM")
@@ -332,12 +355,6 @@ def create_function(library, name, prototype,
                                                       name[4:]))
     return result
 
-env = os.environ.get
-
-def run_llvm_config(args):
-    global llvm_config
-    return subprocess.check_output([llvm_config] + args).decode("utf-8").strip()
-
 header_blacklist = ["llvm/Support/DataTypes.h",
                     "stddef.h",
                     "sys/types.h",
@@ -378,16 +395,7 @@ def parse_headers():
 
     # Identify the C preprocessor
     # TODO: this is the only non-portable part of the code
-    cpp = env("CPP", "cpp")
-    if (not os.path.exists(cpp)
-        and not [1 for p in os.environ["PATH"].split(":")
-                 if os.path.exists(os.path.join(p, cpp))]):
-        llvm_bin_dir = run_llvm_config(["--bindir"])
-        clang_path = os.path.join(llvm_bin_dir, "clang")
-        if os.path.exists(clang_path):
-            cpp = clang_path
-        else:
-            raise RuntimeError("Couldn't find a C preprocessor.")
+    cpp = find_program("CPP", ["clang", "cpp", "gcc", "cc"])
 
     # Take the list of LLVM libraries
     lib_files = glob(os.path.join(run_llvm_config(["--libdir"]), "libLLVM*.so"))
@@ -670,7 +678,10 @@ class {class_name}(object):
 {} = {}
 """.format(name, values))
 
-llvm_config = env("LLVM_CONFIG","llvm-config")
+# Add to PATH the output of llvm-config --bin-dir
+search_paths = os.environ.get("PATH")
+llvm_config = find_program("LLVM_CONFIG", ["llvm-config"])
+search_paths = run_llvm_config(["--bindir"]) + ":" + search_paths
 
 cache_dir = appdirs.user_cache_dir('llvmcpy')
 version = run_llvm_config(["--version"])

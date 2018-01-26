@@ -29,7 +29,8 @@ setup(
     install_requires=[
         'cffi>=1.0.0',
         'pycparser',
-        'appdirs'
+        'appdirs',
+        'shutilwhich'
     ],
     test_suite="llvmcpy.test.TestSuite",
 )
