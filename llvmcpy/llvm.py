@@ -618,6 +618,12 @@ class {class_name}(object):
         if value is not None:
             self.ptr[0] = value
 
+    def __hash__(self):
+        return hash(self.ptr[0])
+
+    def __eq__(self, other):
+        return self.__hash__() == other.__hash__()
+
     def in_ptr(self):
         if self.ptr[0] == ffi.NULL:
             raise RuntimeError("in_ptr called on uninitialized object")

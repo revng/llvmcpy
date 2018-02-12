@@ -13,6 +13,7 @@ define i32 @function2() {
 ; Function Attrs: nounwind uwtable
 define i32 @function1() {
   %1 = call i32 @function2()
+  %2 = call i32 @function2()
   ret i32 %1
 }
 
@@ -65,6 +66,18 @@ class TestSuite(unittest.TestCase):
         first_instruction = first_basic_block.first_instruction
 
         assert first_instruction.is_a_binary_operator() is None
+
+    def test_value_as_key(self):
+        module = load_module(module_source)
+        function1 = module.get_named_function("function1")
+        first_basic_block = function1.get_first_basic_block()
+        first_instruction = first_basic_block.get_first_instruction()
+        second_instruction = first_instruction.get_next_instruction()
+        operand1 = first_instruction.get_operand(0)
+        operand2 = second_instruction.get_operand(0)
+        dictionary = {}
+        dictionary[operand1] = 42
+        assert operand2 in dictionary
 
 if __name__ == '__main__':
     unittest.main()
