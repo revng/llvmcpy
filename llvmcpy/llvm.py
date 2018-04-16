@@ -12,6 +12,7 @@ import hashlib
 import appdirs
 import cffi
 import pycparser
+import pycparser.c_generator
 from cffi import FFI
 from glob import glob
 from itertools import chain
@@ -363,6 +364,7 @@ def clean_include_file(in_path):
     """Clean the LLVM-C API headers files for parsing by CFFI: remove standard
     includes and static inline functions"""
     out_path = in_path + ".filtered"
+
     with open(in_path, "r") as in_file, open(out_path, "w") as out_file:
         skip_block = False
         for line in in_file:
@@ -376,11 +378,6 @@ def clean_include_file(in_path):
 
             if skip or skip_block:
                 out_file.write("// ")
-
-            match = re.match(r".*\b((\d+)\s*<<\s*(\d+))\b.*", line)
-            if match:
-                result = str(int(match.group(2)) << int(match.group(3)))
-                line = line.replace(match.group(1), result)
 
             line = re.sub(r"\b0U\b", "0", line)
             out_file.write(line)
@@ -436,20 +433,22 @@ def parse_headers():
         subprocess.check_call([cpp,
                                "-U__GNUC__",
                                "-I" + temp_directory,
+                               "-I" + llvm_include_dir,
                                "-E",
                                "-o" + all_c_preprocessed,
                                all_c_path])
 
+        # Parse enum definitions
+        enums = handle_enums(all_c_preprocessed)
+
         # Let CFFI parse the preprocessed header
-        ffi.cdef(open(all_c_preprocessed).read(), override=True)
+        with open(all_c_preprocessed) as c_file:
+            ffi.cdef(c_file.read(), override=True)
 
         # Compile the CFFI data and save them so we can return it
         ffi.set_source("ffi", None)
         ffi.compile(temp_directory)
         ffi_code = open(os.path.join(temp_directory, "ffi.py"), "r").read()
-
-        # Parse enum definitions
-        enums = parse_enums(all_c_preprocessed)
 
     finally:
         # Cleanup
@@ -469,7 +468,7 @@ def parse_headers():
 
     return list(libs), ffi_code, enums
 
-def parse_enums(all_c_preprocessed):
+def handle_enums(all_c_preprocessed):
     """
     Parse enum typedefs and return a dictionary mapping from typedefs to values
     as well as from values to the integer representation of the enum.
@@ -486,6 +485,33 @@ def parse_enums(all_c_preprocessed):
         if name.startswith("LLVM") and not name.startswith("LLVM_"):
             return name[4:]
 
+    def handle_expression(variables, expression):
+        expression_type = type(expression)
+        if expression_type is pycparser.c_ast.Constant:
+            return int(expression.value, 0)
+        elif expression_type is pycparser.c_ast.ID:
+            assert expression.name in variables
+            return variables[expression.name]
+        elif expression_type is pycparser.c_ast.BinaryOp:
+            left = handle_expression(variables, expression.left)
+            right = handle_expression(variables, expression.right)
+            if expression.op == "|":
+                return left | right
+            elif expression.op == "&":
+                return left & right
+            elif expression.op == "+":
+                return left + right
+            elif expression.op == "-":
+                return left - right
+            elif expression.op == "<<":
+                return left << right
+            elif expression.op == ">>":
+                return left >> right
+            else:
+                assert False
+        else:
+            assert False
+
     class EnumVisitor(pycparser.c_ast.NodeVisitor):
         def __init__(self):
             self._name = None
@@ -496,19 +522,46 @@ def parse_enums(all_c_preprocessed):
             self.generic_visit(typedef)
 
         def visit_EnumeratorList(self, enum_list):
+            values = {}
+            last = -1
+            for enumerator in enum_list.children():
+                enumerator = enumerator[1]
+                assert type(enumerator) is pycparser.c_ast.Enumerator
+                value = enumerator.value
+                if value is None:
+                    values[enumerator.name] = last + 1
+                else:
+                    values[enumerator.name] = handle_expression(values, value)
+
+                last = values[enumerator.name]
+                enumerator.value = pycparser.c_ast.Constant("int", str(last))
+
+        def visit_EnumeratorList(self, enum_list):
             # Check if we are in a typedef scope
             if self._name is not None:
                 value = 0
                 mapping = {}
+                context = {}
                 for enum in enum_list.enumerators:
+                    assert type(enum) is pycparser.c_ast.Enumerator
+
                     # Check if enum has defined a value
                     if enum.value is not None:
-                        value = int(enum.value.value, 0)
+                        value = handle_expression(context, enum.value)
                     name = remove_prefix(enum.name)
                     mapping[value] = name
+
                     # Add reverse lookup as well, ignoring aliases
                     if name not in mapping:
                         mapping[name] = value
+
+                    # Save in the context, so that other entries can refere to
+                    # it
+                    context[enum.name] = value
+
+                    # Rewrite using a constant
+                    enum.value = pycparser.c_ast.Constant("int", str(value))
+
                     value += 1
 
                 self.enums[self._name] = mapping
@@ -521,6 +574,10 @@ def parse_enums(all_c_preprocessed):
 
     visitor = EnumVisitor()
     visitor.visit(ast)
+
+    with open(all_c_preprocessed, "w") as f:
+        generator = pycparser.c_generator.CGenerator()
+        f.write(generator.visit(ast).replace("__dotdotdot__", "foo"))
 
     return visitor.enums
 
@@ -597,7 +654,7 @@ class LLVMException(Exception):
             write("""{} = ffi.dlopen("{}")""".format(library_name,
                                                      library_path))
 
-            # Create all the classes
+        # Create all the classes
         for key, value in classes.items():
             class_name = remove_llvm_prefix(key)
 
