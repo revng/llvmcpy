@@ -386,6 +386,18 @@ def clean_include_file(in_path):
                 skip_block = False
     shutil.move(out_path, in_path)
 
+def get_libraries():
+    extension = None
+    if sys.platform.startswith('freebsd') or  sys.platform.startswith('linux'):
+        extension = "so"
+    elif sys.platform.startswith('darwin'):
+        extension = "dylib"
+    else:
+        raise ValueError("Unsupported platform: {0}".format(sys.platform))
+    pattern = "libLLVM*.{0}".format(extension)
+    return glob(os.path.join(run_llvm_config(["--libdir"]), pattern))
+
+
 def parse_headers():
     """Parse the header files of the LLVM-C API and produce a list of libraries
     and the CFFI cached data"""
@@ -395,7 +407,7 @@ def parse_headers():
     cpp = find_program("CPP", ["clang", "cpp", "gcc", "cc"])
 
     # Take the list of LLVM libraries
-    lib_files = glob(os.path.join(run_llvm_config(["--libdir"]), "libLLVM*.so"))
+    lib_files = get_libraries()
 
     # Take the LLVM include path
     llvm_include_dir = run_llvm_config(["--includedir"]).strip()
