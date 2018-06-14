@@ -388,13 +388,13 @@ def clean_include_file(in_path):
 
 def get_libraries():
     extension = None
-    if sys.platform.startswith('freebsd') or  sys.platform.startswith('linux'):
-        extension = "so"
-    elif sys.platform.startswith('darwin'):
-        extension = "dylib"
+    if sys.platform == 'win32':
+        extension = '.dll'
+    elif sys.platform == 'darwin':
+        extension = '.dylib'
     else:
-        raise ValueError("Unsupported platform: {0}".format(sys.platform))
-    pattern = "libLLVM*.{0}".format(extension)
+        extension = '.so'
+    pattern = "libLLVM*{0}".format(extension)
     return glob(os.path.join(run_llvm_config(["--libdir"]), pattern))
 
 
