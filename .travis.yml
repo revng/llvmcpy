@@ -1,8 +1,20 @@
-dist: trusty
 language: python
-python:
-  - "2.7"
-  - "3.6"
+
+matrix:
+  include:
+    - os: linux
+      dist: trusty
+      sudo: required
+      python: 2.7
+    - os: linux
+      dist: trusty
+      sudo: required
+      python: 3.6
+    - os: osx
+      osx_image: xcode9.3
+      # python is not a supported language on travis osx: https://docs.travis-ci.com/user/multi-os/
+      language: generic
+
 
 addons:
   apt:
@@ -29,7 +41,12 @@ addons:
     - llvm-6.0-dev
 
 before_install:
-  - sudo -E apt-get -yq --no-install-suggests --no-install-recommends --force-yes install -t llvm-toolchain-trusty-3.9 llvm-3.9-dev
+  - export LLVMCPY_SRC=`pwd`
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update && brew install zlib && brew link --force zlib  ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then ${LLVMCPY_SRC}/.travis/install_llvm.sh ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export PATH="/usr/local/opt/llvm_lite/bin:$PATH" ; fi
+
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo -E apt-get -yq --no-install-suggests --no-install-recommends --force-yes install -t llvm-toolchain-trusty-3.9 llvm-3.9-dev ; fi
 
 # On travis, clang-3.5 in /usr/local includes an llvm-config that comes earlier
 # in the path than the system llvm
@@ -44,6 +61,10 @@ env:
   - LLVM_CONFIG=/usr/bin/llvm-config-5.0
   - LLVM_CONFIG=/usr/bin/llvm-config-6.0
 
-install: "pip install -e ."
+install:
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then pip install -e . ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then sudo pip install -e . ; fi
+
 script:
-  - python setup.py test
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then  python setup.py test ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then sudo python setup.py test ; fi
