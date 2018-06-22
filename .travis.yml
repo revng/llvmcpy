@@ -44,7 +44,6 @@ before_install:
   - export LLVMCPY_SRC=`pwd`
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update && brew install zlib && brew link --force zlib  ; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then ${LLVMCPY_SRC}/.travis/install_llvm.sh ; fi
-#  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export PATH="/usr/local/opt/llvm_lite/bin:$PATH" ; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export PATH="/usr/local/opt/llvm/bin:$PATH" ; fi
 
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo -E apt-get -yq --no-install-suggests --no-install-recommends --force-yes install -t llvm-toolchain-trusty-3.9 llvm-3.9-dev ; fi
@@ -64,10 +63,8 @@ env:
 
 install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then pip install -e . ; fi
-#  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then sudo pip install -e . ; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then pip install --user -e . ; fi
 
 script:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then  python setup.py test ; fi
-#  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then sudo python setup.py test ; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then python setup.py test ; fi
