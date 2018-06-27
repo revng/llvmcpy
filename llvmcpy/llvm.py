@@ -75,13 +75,17 @@ def to_python_case(name):
 def normalize_name(original_class_name, original_name):
     """Normalizes the case and remove the name of the class from the method name
     in several common cases (e.g., Value.get_value_name => Value.get_name)"""
+
+    # BasicBlockAsValue -> GetBasicBlockAsValue
+    if (original_class_name is not None
+        and original_name.startswith(original_class_name)):
+
+        to_skip = len(original_class_name)
+        return normalize_name(original_class_name, original_name[to_skip:])
+
     name = to_python_case(original_name)
     class_name = "" if original_class_name is None \
                  else to_python_case(original_class_name)
-
-    # BasicBlockAsValue -> GetBasicBlockAsValue
-    if name.startswith(class_name + "_"):
-        return normalize_name(original_class_name, "Get" + original_name)
 
     prefix_get = "get_" + class_name + "_"
     prefix_set = "set_" + class_name + "_"
