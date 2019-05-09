@@ -41,11 +41,13 @@ def find_program(env_variable, names):
                        + " ".join(names))
 
 def is_llvm_type(name):
-    return name.startswith("struct LLVM")
+    return name.startswith("struct LLVM") or name.startswith("LLVM")
 
 def remove_llvm_prefix(name):
     assert is_llvm_type(name)
-    name = name[len("struct LLVM"):]
+    if name.startswith("struct "):
+        name = name[len("struct "):]
+    name = name[len("LLVM"):]
     if name.startswith("Opaque"):
         name = name[len("Opaque"):]
     return name
@@ -390,7 +392,10 @@ def create_function(library, name, prototype,
     return result
 
 header_blacklist = ["llvm/Support/DataTypes.h",
+                    "llvm-c/DataTypes.h",
+                    "math.h",
                     "stddef.h",
+                    "cstddef",
                     "sys/types.h",
                     "stdbool.h"]
 def clean_include_file(in_path):
@@ -460,9 +465,10 @@ def parse_headers():
         skip = len(temp_directory) + 1
         for root, dirnames, filenames in os.walk(llvm_c_dir):
             for filename in fnmatch.filter(filenames, '*.h'):
-                header_path = os.path.join(root, filename)
-                include_files.append(header_path[skip:])
-                clean_include_file(header_path)
+                if filename != "DataTypes.h":
+                    header_path = os.path.join(root, filename)
+                    include_files.append(header_path[skip:])
+                    clean_include_file(header_path)
 
         # Create all.c, a C file including all the headers
         all_c_path = os.path.join(temp_directory, "all.c")
