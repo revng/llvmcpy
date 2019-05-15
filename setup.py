@@ -30,7 +30,8 @@ setup(
         'cffi>=1.0.0',
         'pycparser',
         'appdirs',
-        'shutilwhich'
+        'shutilwhich',
+        'packaging'
     ],
     test_suite="llvmcpy.test.TestSuite",
 )

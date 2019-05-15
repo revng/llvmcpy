@@ -1,5 +1,6 @@
 import unittest
 from llvmcpy import llvm
+from packaging import version
 
 module_source = """; ModuleID = 'example.c'
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
@@ -29,6 +30,12 @@ define i32 @main(i32, i8**) {
   ret i32 %6
 }
 """
+
+if version.parse(llvm.version) >= version.parse("7.0"):
+    module_source = module_source + """
+    !llvm.module.flags = !{!0}
+    !0 = !{ i32 4, !"foo", i32 42 }
+    """
 
 def load_module(ir):
     context = llvm.get_global_context()
@@ -84,6 +91,17 @@ class TestSuite(unittest.TestCase):
         value = llvm.md_string(string, len(string))
         self.assertEqual(value.get_md_string(), string)
         self.assertEqual(value.get_md_string(encoding=None), string.encode('ascii'))
+
+    def test_metadata_flags(self):
+        if version.parse(llvm.version) < version.parse("7.0"):
+            return
+        module = load_module(module_source)
+        length = llvm.ffi.new("size_t *")
+        metadata_flags = module.copy_module_flags_metadata(length)
+        behavior = metadata_flags.module_flag_entries_get_flag_behavior(0)
+        key = metadata_flags.module_flag_entries_get_key(0)
+        assert behavior == 3
+        assert key == "foo"
 
 if __name__ == '__main__':
     unittest.main()
