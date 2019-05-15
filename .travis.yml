@@ -16,6 +16,8 @@ env:
   - LLVM_VERSION=4.0 PYTHON_VERSION=2
   - LLVM_VERSION=5.0 PYTHON_VERSION=2
   - LLVM_VERSION=6.0 PYTHON_VERSION=2
+  - LLVM_VERSION=7 PYTHON_VERSION=2
+  - LLVM_VERSION=8 PYTHON_VERSION=2
   - LLVM_VERSION=3.4 PYTHON_VERSION=3
   - LLVM_VERSION=3.5 PYTHON_VERSION=3
   - LLVM_VERSION=3.6 PYTHON_VERSION=3
@@ -25,6 +27,8 @@ env:
   - LLVM_VERSION=4.0 PYTHON_VERSION=3
   - LLVM_VERSION=5.0 PYTHON_VERSION=3
   - LLVM_VERSION=6.0 PYTHON_VERSION=3
+  - LLVM_VERSION=7 PYTHON_VERSION=3
+  - LLVM_VERSION=8 PYTHON_VERSION=3
 
 # Exclude LLVM versions not available on brew
 matrix:
@@ -64,6 +68,8 @@ addons:
       - sourceline: "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-4.0 main"
       - sourceline: "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-5.0 main"
       - sourceline: "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-6.0 main"
+      - sourceline: "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-7 main"
+      - sourceline: "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-8 main"
 
 before_install:
   - |
