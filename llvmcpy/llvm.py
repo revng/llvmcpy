@@ -795,9 +795,9 @@ class {class_name}(object):
 unsigned_ints = set(("unsigned", "unsigned int", "unsigned long"))
 
 # Add to PATH the output of llvm-config --bin-dir
-search_paths = os.environ.get("PATH")
+search_paths = os.environ.get("PATH", os.defpath)
 llvm_config = find_program("LLVM_CONFIG", ["llvm-config"])
-search_paths = run_llvm_config(["--bindir"]) + ":" + search_paths
+search_paths = run_llvm_config(["--bindir"]) + (search_paths and (os.pathsep + search_paths))
 
 cache_dir = appdirs.user_cache_dir('llvmcpy')
 version = run_llvm_config(["--version"])
