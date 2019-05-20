@@ -36,6 +36,8 @@ matrix:
   - os: osx
     env: LLVM_VERSION=3.6 PYTHON_VERSION=2
   - os: osx
+    env: LLVM_VERSION=3.7 PYTHON_VERSION=2
+  - os: osx
     env: LLVM_VERSION=3.8 PYTHON_VERSION=2
   - os: osx
     env: LLVM_VERSION=3.4 PYTHON_VERSION=3
@@ -43,6 +45,8 @@ matrix:
     env: LLVM_VERSION=3.5 PYTHON_VERSION=3
   - os: osx
     env: LLVM_VERSION=3.6 PYTHON_VERSION=3
+  - os: osx
+    env: LLVM_VERSION=3.7 PYTHON_VERSION=3
   - os: osx
     env: LLVM_VERSION=3.8 PYTHON_VERSION=3
 
