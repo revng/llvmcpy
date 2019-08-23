@@ -7,7 +7,6 @@ os:
 osx_image: xcode9.3
 
 env:
-  - LLVM_VERSION=3.4 PYTHON_VERSION=2
   - LLVM_VERSION=3.5 PYTHON_VERSION=2
   - LLVM_VERSION=3.6 PYTHON_VERSION=2
   - LLVM_VERSION=3.7 PYTHON_VERSION=2
@@ -18,7 +17,6 @@ env:
   - LLVM_VERSION=6.0 PYTHON_VERSION=2
   - LLVM_VERSION=7 PYTHON_VERSION=2
   - LLVM_VERSION=8 PYTHON_VERSION=2
-  - LLVM_VERSION=3.4 PYTHON_VERSION=3
   - LLVM_VERSION=3.5 PYTHON_VERSION=3
   - LLVM_VERSION=3.6 PYTHON_VERSION=3
   - LLVM_VERSION=3.7 PYTHON_VERSION=3
@@ -34,8 +32,6 @@ env:
 matrix:
   exclude:
   - os: osx
-    env: LLVM_VERSION=3.4 PYTHON_VERSION=2
-  - os: osx
     env: LLVM_VERSION=3.5 PYTHON_VERSION=2
   - os: osx
     env: LLVM_VERSION=3.6 PYTHON_VERSION=2
@@ -43,8 +39,6 @@ matrix:
     env: LLVM_VERSION=3.7 PYTHON_VERSION=2
   - os: osx
     env: LLVM_VERSION=3.8 PYTHON_VERSION=2
-  - os: osx
-    env: LLVM_VERSION=3.4 PYTHON_VERSION=3
   - os: osx
     env: LLVM_VERSION=3.5 PYTHON_VERSION=3
   - os: osx
@@ -58,18 +52,9 @@ addons:
   apt:
     sources:
       - sourceline: "ppa:ubuntu-toolchain-r/test"
-      - sourceline: "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-3.4 main"
+      - sourceline: "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-7 main"
         key_url: "http://apt.llvm.org/llvm-snapshot.gpg.key"
-      - sourceline: "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-3.5 main"
-      - sourceline: "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-3.6 main"
-      - sourceline: "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-3.7 main"
-      - sourceline: "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-3.8 main"
-      - sourceline: "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-3.9 main"
-      - sourceline: "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-4.0 main"
-      - sourceline: "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-5.0 main"
-      - sourceline: "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-6.0 main"
-      - sourceline: "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-7 main"
-      - sourceline: "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-8 main"
+      - sourceline: "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-8 main"
 
 before_install:
   - |
@@ -84,8 +69,8 @@ before_install:
     if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
       sudo apt-get update
       sudo -E apt-get -yq --no-install-suggests --no-install-recommends \
-        --force-yes install -t llvm-toolchain-trusty-3.9 \
-        $PYTHON $PYTHON-pip llvm-$LLVM_VERSION-dev
+        --force-yes install \
+        $PYTHON $PYTHON-pip $PYTHON-setuptools llvm-$LLVM_VERSION-dev
       export LLVM_CONFIG=llvm-config-$LLVM_VERSION
     fi
 
