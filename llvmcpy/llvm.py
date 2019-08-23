@@ -17,7 +17,11 @@ from cffi import FFI
 from glob import glob
 from itertools import chain
 from collections import defaultdict
-from shutilwhich import which
+# For Python version <3.3, shutil.which is provided by the shutilwhich module.
+try:
+    from shutil import which
+except ImportError:
+    from shutilwhich import which
 
 def run_llvm_config(args):
     """Invoke llvm-config with the specified arguments and return the output"""
