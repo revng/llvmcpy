@@ -543,8 +543,7 @@ def handle_enums(all_c_preprocessed):
     def handle_expression(variables, expression):
         expression_type = type(expression)
         if expression_type is pycparser.c_ast.Constant:
-            # Testing on LLVM 12+, some constants have the U qualifier which crashes
-            # when converting to an int, so just remove it here if it exists.
+            # Testing on LLVM 12+, some constants have the unsigned qualifier
             expression_type = expression_type.replace("U", "")
             return int(expression.value, 0)
         elif expression_type is pycparser.c_ast.ID:
