@@ -1,0 +1,149 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test-ubuntu-python-versions:
+    strategy:
+      matrix:
+        llvm_version: ["18"]
+        python_version: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python and LLVM
+        run: |
+          set -xeuo pipefail
+
+          sudo bash -xeuo pipefail -c '
+          export DEBIAN_FRONTEND=noninteractive
+          add-apt-repository -y ppa:deadsnakes/ppa
+          apt-get update
+          apt-get install -y --no-install-recommends python${{ matrix.python_version }}-venv python${{ matrix.python_version }}-dev llvm-dev
+          '
+
+      - name: Test llvmcpy
+        run: |
+          set -xeuo pipefail
+
+          # Configure environment
+          export LLVM_CONFIG=llvm-config-${{ matrix.llvm_version }}
+
+          # Set up venv
+          python${{ matrix.python_version }} -m venv venv
+          source venv/bin/activate
+          python -m ensurepip
+          pip install setuptools
+
+          # Install llvmcpy
+          if test "${{ matrix.python_version }}" == "3.13"; then
+            pip install "cffi>=v1.17.0rc1"
+          fi
+          pip install -e .
+
+          # Run the test suite
+          python setup.py test
+
+  test-macos:
+    strategy:
+      matrix:
+        os: [macos-latest]
+        llvm_version: ["18"]
+        python_version: ["3.10"]
+
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python and LLVM
+        run: |
+          set -xeuo pipefail
+
+          # Install Python and LLVM
+          brew update
+          brew install python@${{ matrix.python_version }} llvm@${{ matrix.llvm_version }}
+
+      - name: Install dependencies on Ubuntukss
+        run: |
+          set -xeuo pipefail
+
+          # Configure environment
+          export PATH="$PATH:/opt/homebrew/bin:/opt/homebrew/opt/llvm/bin"
+
+          # Set up venv
+          python${{ matrix.python_version }} -m venv venv
+          source venv/bin/activate
+          python -m ensurepip
+          pip install setuptools
+
+          # Install llvmcpy
+          pip install -e .
+
+          # Run the test suite
+          python setup.py test
+
+  test-llvm-versions:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04]
+        llvm_version: ["5.0", "6.0", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"]
+        python_version: ["3.10"]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Test
+        run: |
+          set -xeuo pipefail
+
+          # Install podman
+          sudo bash -xeuo pipefail -c '
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          sudo apt-get install -y podman
+          '
+
+          podman run -it --rm -v $PWD:/code ubuntu:18.04 bash -xeuo pipefail -c '
+
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+
+          # Install some requirements
+          apt-get install -y --no-install-recommends lsb-release wget software-properties-common gnupg curl
+
+          # Install Python backports
+          add-apt-repository -y ppa:savoury1/python
+
+          # Requires to make LLVM 14 install
+          add-apt-repository -y ppa:ubuntu-toolchain-r/test
+
+          # Install LLVM
+          curl -L https://apt.llvm.org/llvm-snapshot.gpg.key > /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          SUFFIX=
+          if test ${{ matrix.llvm_version }} -ne 19; then
+            SUFFIX=-${{ matrix.llvm_version }}
+          fi
+          add-apt-repository -y "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic$SUFFIX main"
+          apt-get update
+          apt-get install -y --no-install-recommends python${{ matrix.python_version }} clang-${{ matrix.llvm_version }} llvm-${{ matrix.llvm_version }}-dev llvm-${{ matrix.llvm_version }}
+
+          # Test llvmcpy
+          cd /code
+
+          curl -L https://bootstrap.pypa.io/get-pip.py | python${{ matrix.python_version }}
+
+          python${{ matrix.python_version }} -m pip install --upgrade pip
+
+          export LLVM_CONFIG=llvm-config-${{ matrix.llvm_version }}
+          python${{ matrix.python_version }} -m pip install -e .
+          python${{ matrix.python_version }} setup.py test
+          '
