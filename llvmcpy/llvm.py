@@ -570,7 +570,7 @@ def handle_enums(all_c_preprocessed):
     def handle_expression(variables, expression):
         expression_type = type(expression)
         if expression_type is pycparser.c_ast.Constant:
-            return int(expression.value, 0)
+            return int(expression.value.rstrip("U"), 0)
         elif expression_type is pycparser.c_ast.ID:
             assert expression.name in variables
             return variables[expression.name]
