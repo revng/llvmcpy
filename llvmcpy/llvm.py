@@ -397,6 +397,7 @@ def create_function(library, name, prototype,
 
 header_blacklist = ["llvm/Support/DataTypes.h",
                     "llvm-c/DataTypes.h",
+                    "llvm-c/blake3.h",
                     "math.h",
                     "stddef.h",
                     "cstddef",
@@ -469,10 +470,13 @@ def parse_headers():
         skip = len(temp_directory) + 1
         for root, dirnames, filenames in os.walk(llvm_c_dir):
             for filename in fnmatch.filter(filenames, '*.h'):
-                if filename != "DataTypes.h":
+                if filename != "DataTypes.h" and filename != "blake3.h":
                     header_path = os.path.join(root, filename)
                     include_files.append(header_path[skip:])
                     clean_include_file(header_path)
+
+        if os.path.exists(os.path.join(temp_directory, "llvm-c/blake3.h")):
+            os.remove(os.path.join(temp_directory, "llvm-c/blake3.h"))
 
         # Create all.c, a C file including all the headers
         all_c_path = os.path.join(temp_directory, "all.c")
