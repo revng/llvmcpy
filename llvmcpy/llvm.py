@@ -17,11 +17,7 @@ from cffi import FFI
 from glob import glob
 from itertools import chain
 from collections import defaultdict
-# For Python version <3.3, shutil.which is provided by the shutilwhich module.
-try:
-    from shutil import which
-except ImportError:
-    from shutilwhich import which
+from shutil import which
 
 def run_llvm_config(args):
     """Invoke llvm-config with the specified arguments and return the output"""
@@ -397,6 +393,7 @@ def create_function(library, name, prototype,
 
 header_blacklist = ["llvm/Support/DataTypes.h",
                     "llvm-c/DataTypes.h",
+                    "llvm-c/blake3.h",
                     "math.h",
                     "stddef.h",
                     "cstddef",
@@ -435,10 +432,17 @@ def get_libraries():
     elif sys.platform == 'darwin':
         extension = '.dylib'
     else:
-        extension = '.so'
+        extension = '.so*'
     pattern = "libLLVM*{0}".format(extension)
     return glob(os.path.join(run_llvm_config(["--libdir"]), pattern))
 
+
+def recursive_chmod(path):
+    os.chmod(path, 0o700)
+    for dirpath, dirnames, filenames in os.walk(path):
+        os.chmod(dirpath, 0o700)
+        for filename in filenames:
+            os.chmod(os.path.join(dirpath, filename), 0o600)
 
 def parse_headers():
     """Parse the header files of the LLVM-C API and produce a list of libraries
@@ -450,6 +454,11 @@ def parse_headers():
 
     # Take the list of LLVM libraries
     lib_files = get_libraries()
+
+    for lib_file in lib_files:
+        if os.path.basename(lib_file).startswith("libLLVM."):
+            lib_files = [lib_file]
+            break
 
     # Take the LLVM include path
     llvm_include_dir = run_llvm_config(["--includedir"]).strip()
@@ -464,15 +473,29 @@ def parse_headers():
         shutil.copytree(os.path.join(llvm_include_dir, "llvm", "Config"),
                         os.path.join(temp_directory, "llvm", "Config"))
 
+        recursive_chmod(temp_directory)
+
         # Find and adapt all the header files
         include_files = []
         skip = len(temp_directory) + 1
         for root, dirnames, filenames in os.walk(llvm_c_dir):
             for filename in fnmatch.filter(filenames, '*.h'):
-                if filename != "DataTypes.h":
+                if filename != "DataTypes.h" and filename != "blake3.h":
                     header_path = os.path.join(root, filename)
                     include_files.append(header_path[skip:])
                     clean_include_file(header_path)
+
+
+        with open(os.path.join(temp_directory, "llvm-c/Deprecated.h"), "w") as deprecated_h:
+            deprecated_h.write("""
+#ifndef LLVM_C_DEPRECATED_H
+#define LLVM_C_DEPRECATED_H
+#endif /* LLVM_C_DEPRECATED_H */
+# define LLVM_ATTRIBUTE_C_DEPRECATED(decl, message) decl
+""")
+
+        if os.path.exists(os.path.join(temp_directory, "llvm-c/blake3.h")):
+            os.remove(os.path.join(temp_directory, "llvm-c/blake3.h"))
 
         # Create all.c, a C file including all the headers
         all_c_path = os.path.join(temp_directory, "all.c")
@@ -543,7 +566,7 @@ def handle_enums(all_c_preprocessed):
     def handle_expression(variables, expression):
         expression_type = type(expression)
         if expression_type is pycparser.c_ast.Constant:
-            return int(expression.value, 0)
+            return int(expression.value.rstrip("U"), 0)
         elif expression_type is pycparser.c_ast.ID:
             assert expression.name in variables
             return variables[expression.name]
