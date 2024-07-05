@@ -489,6 +489,15 @@ def parse_headers():
                     include_files.append(header_path[skip:])
                     clean_include_file(header_path)
 
+
+        with open(os.path.join(temp_directory, "llvm-c/Deprecated.h"), "w") as deprecated_h:
+            deprecated_h.write("""
+#ifndef LLVM_C_DEPRECATED_H
+#define LLVM_C_DEPRECATED_H
+#endif /* LLVM_C_DEPRECATED_H */
+# define LLVM_ATTRIBUTE_C_DEPRECATED(decl, message) decl
+""")
+
         if os.path.exists(os.path.join(temp_directory, "llvm-c/blake3.h")):
             os.remove(os.path.join(temp_directory, "llvm-c/blake3.h"))
 
