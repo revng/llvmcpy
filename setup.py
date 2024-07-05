@@ -30,7 +30,6 @@ setup(
         'cffi>=1.0.0',
         'pycparser',
         'appdirs',
-        'shutilwhich;python_version<"3.3"',
         'packaging'
     ],
     test_suite="llvmcpy.test.TestSuite",
