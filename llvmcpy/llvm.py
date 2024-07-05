@@ -441,6 +441,13 @@ def get_libraries():
     return glob(os.path.join(run_llvm_config(["--libdir"]), pattern))
 
 
+def recursive_chmod(path):
+    os.chmod(path, 0o700)
+    for dirpath, dirnames, filenames in os.walk(path):
+        os.chmod(dirpath, 0o700)
+        for filename in filenames:
+            os.chmod(os.path.join(dirpath, filename), 0o600)
+
 def parse_headers():
     """Parse the header files of the LLVM-C API and produce a list of libraries
     and the CFFI cached data"""
@@ -464,6 +471,8 @@ def parse_headers():
         shutil.copytree(os.path.join(llvm_include_dir, "llvm-c"), llvm_c_dir)
         shutil.copytree(os.path.join(llvm_include_dir, "llvm", "Config"),
                         os.path.join(temp_directory, "llvm", "Config"))
+
+        recursive_chmod(temp_directory)
 
         # Find and adapt all the header files
         include_files = []
