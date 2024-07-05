@@ -436,7 +436,7 @@ def get_libraries():
     elif sys.platform == 'darwin':
         extension = '.dylib'
     else:
-        extension = '.so'
+        extension = '.so*'
     pattern = "libLLVM*{0}".format(extension)
     return glob(os.path.join(run_llvm_config(["--libdir"]), pattern))
 
@@ -458,6 +458,11 @@ def parse_headers():
 
     # Take the list of LLVM libraries
     lib_files = get_libraries()
+
+    for lib_file in lib_files:
+        if os.path.basename(lib_file).startswith("libLLVM."):
+            lib_files = [lib_file]
+            break
 
     # Take the LLVM include path
     llvm_include_dir = run_llvm_config(["--includedir"]).strip()
