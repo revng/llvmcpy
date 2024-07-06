@@ -1,6 +1,8 @@
 import unittest
-from llvmcpy import llvm
+
 from packaging import version
+
+from llvmcpy import llvm
 
 module_source = """; ModuleID = 'example.c'
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
@@ -32,27 +34,32 @@ define i32 @main(i32, i8**) {
 """
 
 if version.parse(llvm.version) >= version.parse("7.0"):
-    module_source = module_source + """
+    module_source = (
+        module_source
+        + """
     !llvm.module.flags = !{!0}
     !0 = !{ i32 4, !"foo", i32 42 }
     """
+    )
+
 
 def load_module(ir):
     context = llvm.get_global_context()
-    buffer = llvm.create_memory_buffer_with_memory_range_copy(ir,
-                                                              len(ir),
-                                                              "example")
+    buffer = llvm.create_memory_buffer_with_memory_range_copy(ir, len(ir), "example")
     return context.parse_ir(buffer)
+
 
 def get_function_number(ir):
     module = load_module(ir)
     return len(list(module.iter_functions()))
+
 
 def get_non_existing_basic_block(ir):
     module = load_module(ir)
     first_function = list(module.iter_functions())[0]
     first_basic_block = list(first_function.iter_basic_blocks())[0]
     first_basic_block.get_next().first_instruction()
+
 
 class TestSuite(unittest.TestCase):
     def test_function_count(self):
@@ -63,8 +70,8 @@ class TestSuite(unittest.TestCase):
             get_non_existing_basic_block(module_source)
 
     def test_resolve_enums(self):
-        assert llvm.Opcode[llvm.Switch] == 'Switch'
-        assert llvm.Opcode['Switch'] == llvm.Switch
+        assert llvm.Opcode[llvm.Switch] == "Switch"
+        assert llvm.Opcode["Switch"] == llvm.Switch
 
     def test_translate_null_ptr_to_none(self):
         module = load_module(module_source)
@@ -90,7 +97,7 @@ class TestSuite(unittest.TestCase):
         string = "a\0b\0c"
         value = llvm.md_string(string, len(string))
         self.assertEqual(value.get_md_string(), string)
-        self.assertEqual(value.get_md_string(encoding=None), string.encode('ascii'))
+        self.assertEqual(value.get_md_string(encoding=None), string.encode("ascii"))
 
     def test_metadata_flags(self):
         if version.parse(llvm.version) < version.parse("7.0"):
@@ -103,5 +110,6 @@ class TestSuite(unittest.TestCase):
         assert behavior == 3
         assert key == "foo"
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()
