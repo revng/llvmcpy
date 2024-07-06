@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import sys
 import keyword
 import os
@@ -9,27 +7,42 @@ import shutil
 import fnmatch
 import re
 import hashlib
+
+from itertools import chain
+from collections import defaultdict
+from shutil import which
+from typing import Any, List, MutableMapping, Optional, Tuple, Union
+from pathlib import Path
+
 import appdirs
 import cffi
 import pycparser
 import pycparser.c_generator
 from cffi import FFI
-from glob import glob
-from itertools import chain
-from collections import defaultdict
-from shutil import which
 
-def run_llvm_config(args):
+Properties = MutableMapping[str, Tuple[Tuple[str, str], Tuple[str, str]]]
+Classes = MutableMapping[str, List[Tuple[str, str, Any]]]
+EnumMap = MutableMapping[Union[int, str], Union[int, str]]
+
+ffi: Optional[FFI] = None
+
+unsigned_ints = set(("unsigned", "unsigned int", "unsigned long"))
+
+llvm_config: Optional[str] = None
+
+search_paths: str = ""
+
+version: str = ""
+def run_llvm_config(args: List[str]) -> str:
     """Invoke llvm-config with the specified arguments and return the output"""
 
-    global llvm_config
+    assert llvm_config is not None
     return subprocess.check_output([llvm_config] + args).decode("utf-8").strip()
 
-def find_program(env_variable, names):
+def find_program(env_variable: str, names: List[str]) -> str:
     """Find an executable in the env_variable environment variable or in PATH in
     with one of the names in the argument names."""
 
-    global search_paths
     for name in chain([os.environ.get(env_variable, "")], names):
         path = which(name, path=search_paths)
         if path:
@@ -40,10 +53,10 @@ def find_program(env_variable, names):
                        + " or any of the following executables in PATH: "
                        + " ".join(names))
 
-def is_llvm_type(name):
+def is_llvm_type(name: str) -> bool:
     return name.startswith("struct LLVM") or name.startswith("LLVM")
 
-def remove_llvm_prefix(name):
+def remove_llvm_prefix(name: str) -> str:
     assert is_llvm_type(name)
     if name.startswith("struct "):
         name = name[len("struct "):]
@@ -52,7 +65,7 @@ def remove_llvm_prefix(name):
         name = name[len("Opaque"):]
     return name
 
-def to_python_case(name):
+def to_python_case(name: str) -> str:
     """Convert "GetLLVMFunctionID" to a more pythonic "get_llvm_function_id" """
 
     # If it's all upper cases, simply return the lower case version
@@ -74,7 +87,7 @@ def to_python_case(name):
     # Discard the initial _
     return result[1:]
 
-def normalize_name(original_class_name, original_name):
+def normalize_name(original_class_name: Optional[str], original_name: str) -> str:
     """Normalizes the case and remove the name of the class from the method name
     in several common cases (e.g., Value.get_value_name => Value.get_name)"""
 
@@ -106,8 +119,8 @@ def normalize_name(original_class_name, original_name):
 
     return name
 
-def create_function(library, name, prototype,
-                    class_name=None, properties=None, classes=None):
+def create_function(library: str, name: str, prototype,
+                    class_name: Optional[str]=None, properties: Optional[Properties]=None, classes: Optional[Classes]=None):
     """Return a string containing one or more Python functions wrapping in a
     more Pythonic way the specified library function"""
 
@@ -144,36 +157,36 @@ def create_function(library, name, prototype,
             elif (pointee.kind == "pointer" and pointee.item.kind == "primitive"
                   and pointee.item.cname == "char"):
                 # char **: the function is returning a string
-                arguments.append("arg{}".format(index))
+                arguments.append(f"arg{index}")
                 out_strings.append(index)
             elif (pointee.kind == "struct"
                   and is_llvm_type(pointee.cname)):
                 # LLVM object *: the function takes is taking an LLVM object
-                arguments.append("arg{}.in_ptr()".format(index))
+                arguments.append(f"arg{index}.in_ptr()")
             elif pointee.kind == "primitive" and pointee.cname == "char":
                 # char *: TODO
-                arguments.append("""arg{}.encode("utf-8")""".format(index))
+                arguments.append(f"""arg{index}.encode("utf-8")""")
             elif pointee.kind == "primitive":
                 # int *: TODO
-                arguments.append("arg{}".format(index))
+                arguments.append(f"arg{index}")
             elif pointee.kind == "void":
                 # void *: TODO
-                arguments.append("arg{}".format(index))
+                arguments.append(f"arg{index}")
             else:
                 print(pointee)
                 assert False
         elif arg_type.kind == "primitive" or arg_type.kind == "enum":
             # Enumeration
-            arguments.append("arg{}".format(index))
+            arguments.append(f"arg{index}")
         elif arg_type.kind == "function":
             # Function pointer
-            arguments.append("arg{}".format(index))
+            arguments.append(f"arg{index}")
         else:
             print(prototype)
             assert False
 
     # Build arguments for the function call
-    function_arguments = ["arg" + str(x)
+    function_arguments: List[Optional[str]] = [f"arg{x}"
                           for x in range(len(effective_arguments))]
 
     # Compute pythonic name
@@ -182,6 +195,7 @@ def create_function(library, name, prototype,
     # If the method starts with get_ or set_ also create the appropriate
     # property
     if is_class_method:
+        assert properties is not None
         if method_name.startswith("get_") and len(function_arguments) == 0:
             properties[method_name[4:]] = ((name, method_name),
                                            properties[method_name[4:]][1])
@@ -193,7 +207,7 @@ def create_function(library, name, prototype,
     def header():
         zeroth_argument = ["self"] if is_class_method else []
         # Discard None arguments, they have been removed
-        args = filter(lambda x: x is not None, function_arguments)
+        args = [arg for arg in function_arguments if arg is not None]
         function_arguments_str = ", ".join(zeroth_argument + list(args))
         return ("""
     def {}({}):
@@ -205,7 +219,7 @@ def create_function(library, name, prototype,
     def call():
         zeroth_argument = ["self.in_ptr()"] if is_class_method else []
         arguments_str = ", ".join(zeroth_argument + arguments)
-        return "{}.{}({})".format(library, name, arguments_str)
+        return f"{library}.{name}({arguments_str})"
 
     # Prepare creation of the function body handling special cases
     return_type = prototype.result
@@ -221,7 +235,7 @@ def create_function(library, name, prototype,
             and (effective_arguments[out_arg + 1].cname == "unsigned int")):
 
             # Replace the argument with the lenght of the previous argument
-            arguments[out_arg + 1] = "len(arg{})".format(out_arg)
+            arguments[out_arg + 1] = f"len(arg{out_arg})"
 
             # Remove the function argument, we know how to compute it
             function_arguments[out_arg + 1] = None
@@ -284,11 +298,11 @@ def create_function(library, name, prototype,
             result_type = remove_llvm_prefix(result_type)
             result_type += "()"
 
-        result += """        result = {}
-        failure = {}
+        result += f"""        result = {result_type}
+        failure = {call()}
         if failure != 0:
-            raise LLVMException({})
-        return result""".format(result_type, call(), error_message)
+            raise LLVMException({error_message})
+        return result"""
 
     elif (return_type.kind == "pointer"
           and return_type.item.kind == "primitive"
@@ -310,12 +324,12 @@ def create_function(library, name, prototype,
         # Print the function body: first create a buffer for the length, then
         # call the function and build the string return value from the
         # returned char pointer and the length
-        result += """        length_buffer = ffi.new("{}[1]")
-        ptr = {}
+        result += f"""        length_buffer = ffi.new("{last_arg.item.cname}[1]")
+        ptr = {call()}
         length = length_buffer[0]
         raw_bytes = ffi.unpack(ptr, length)
         return raw_bytes.decode(encoding) if encoding else raw_bytes
-        """.format(last_arg.item.cname, call())
+        """
 
     else:
         # Regular case
@@ -332,18 +346,17 @@ def create_function(library, name, prototype,
                 and is_llvm_type(pointee.cname)):
 
                 return_type_name = remove_llvm_prefix(pointee.cname)
-                result += "        return {}({})".format(return_type_name,
-                                                         call())
+                result += f"        return {return_type_name}({call()})"
 
             elif pointee.kind == "primitive" and pointee.cname == "char":
                 # Returning a char **, wrap it as a Python string
-                result += "        return ffi.string({})".format(call())
+                result += f"        return ffi.string({call()})"
             else:
                 # All the rest
-                result += "        return " + call()
+                result += f"        return {call()}"
         else:
             # All the rest
-            result += "        return " + call()
+            result += f"        return {call()}"
 
     # Generate pythonic way to iterate over list of objects (e.g., functions in
     # a module)
@@ -363,6 +376,7 @@ def create_function(library, name, prototype,
         iterated_name = name[len("LLVMGetFirst"):]
 
         # Check if we have a Somthing class
+        assert classes is not None
         if full_iterated_type_name in classes:
             # Look for the LLVMGetNextSomething method
             for library, name, prototype in classes[full_iterated_type_name]:
@@ -376,19 +390,15 @@ def create_function(library, name, prototype,
                     # Something
                     docstring = "\"\"\"See LLVMGetFirst{} and {}\"\"\""
                     docstring = docstring.format(iterated_name, name)
-                    result += """
+                    result += f"""
 
-    def iter_{}s(self):
-        {}
-        next = self.{}()
+    def iter_{normalize_name(class_name, iterated_name)}s(self):
+        {docstring}
+        next = self.{method_name}()
         while next is not None:
             yield next
-            next = next.{}()""".format(normalize_name(class_name,
-                                                      iterated_name),
-                                       docstring,
-                                       method_name,
-                                       normalize_name(iterated_type_name,
-                                                      name[4:]))
+            next = next.{normalize_name(iterated_type_name, name[4:])}()"""
+
     return result
 
 header_blacklist = ["llvm/Support/DataTypes.h",
@@ -399,12 +409,12 @@ header_blacklist = ["llvm/Support/DataTypes.h",
                     "cstddef",
                     "sys/types.h",
                     "stdbool.h"]
-def clean_include_file(in_path):
+def clean_include_file(in_path: Path) -> None:
     """Clean the LLVM-C API headers files for parsing by CFFI: remove standard
     includes and static inline functions"""
-    out_path = in_path + ".filtered"
+    out_path = Path(str(in_path) + ".filtered")
 
-    with open(in_path, "r") as in_file, open(out_path, "w") as out_file:
+    with in_path.open("r", encoding="utf8") as in_file, out_path.open("w", encoding="utf8") as out_file:
         skip_block = False
         for line in in_file:
             skip = False
@@ -425,7 +435,7 @@ def clean_include_file(in_path):
                 skip_block = False
     shutil.move(out_path, in_path)
 
-def get_libraries():
+def get_libraries() -> List[Path]:
     extension = None
     if sys.platform == 'win32':
         extension = '.dll'
@@ -433,18 +443,19 @@ def get_libraries():
         extension = '.dylib'
     else:
         extension = '.so*'
-    pattern = "libLLVM*{0}".format(extension)
-    return glob(os.path.join(run_llvm_config(["--libdir"]), pattern))
+    pattern = f"libLLVM*{extension}"
+    return list(Path(run_llvm_config(["--libdir"])).glob(pattern))
 
 
-def recursive_chmod(path):
-    os.chmod(path, 0o700)
-    for dirpath, dirnames, filenames in os.walk(path):
-        os.chmod(dirpath, 0o700)
+def recursive_chmod(path: Path):
+    path.chmod(0o700)
+    for dirpath_str, _, filenames in os.walk(str(path)):
+        dirpath = Path(dirpath_str)
+        dirpath.chmod(0o700)
         for filename in filenames:
-            os.chmod(os.path.join(dirpath, filename), 0o600)
+            (dirpath / filename).chmod(0o600)
 
-def parse_headers():
+def parse_headers() -> Tuple[List[Tuple[Path, str, Any]], str, MutableMapping[str, EnumMap]]:
     """Parse the header files of the LLVM-C API and produce a list of libraries
     and the CFFI cached data"""
 
@@ -456,97 +467,98 @@ def parse_headers():
     lib_files = get_libraries()
 
     for lib_file in lib_files:
-        if os.path.basename(lib_file).startswith("libLLVM."):
+        if lib_file.name.startswith("libLLVM."):
             lib_files = [lib_file]
             break
 
     # Take the LLVM include path
-    llvm_include_dir = run_llvm_config(["--includedir"]).strip()
+    llvm_include_dir = Path(run_llvm_config(["--includedir"]).strip())
 
     # Create a temporary directory in which we will copy the headers and adapt
     # them a little for CFFI parsing
-    temp_directory = tempfile.mkdtemp()
+    temp_directory = Path(tempfile.mkdtemp())
     try:
-        os.mkdir(os.path.join(temp_directory, "llvm"))
-        llvm_c_dir = os.path.join(temp_directory, "llvm-c")
-        shutil.copytree(os.path.join(llvm_include_dir, "llvm-c"), llvm_c_dir)
-        shutil.copytree(os.path.join(llvm_include_dir, "llvm", "Config"),
-                        os.path.join(temp_directory, "llvm", "Config"))
+        llvm_path = temp_directory / "llvm"
+        llvm_path.mkdir()
+        llvm_c_path = temp_directory / "llvm-c"
+        shutil.copytree(llvm_include_dir / "llvm-c", llvm_c_path)
+        shutil.copytree(llvm_include_dir / "llvm" / "Config",
+                        temp_directory / "llvm" / "Config")
 
         recursive_chmod(temp_directory)
 
         # Find and adapt all the header files
         include_files = []
-        skip = len(temp_directory) + 1
-        for root, dirnames, filenames in os.walk(llvm_c_dir):
+        for root_str, _, filenames in os.walk(llvm_c_path):
+            root = Path(root_str)
             for filename in fnmatch.filter(filenames, '*.h'):
                 if filename != "DataTypes.h" and filename != "blake3.h":
-                    header_path = os.path.join(root, filename)
-                    include_files.append(header_path[skip:])
+                    header_path = root / filename
+                    include_files.append(str(header_path.relative_to(temp_directory)))
                     clean_include_file(header_path)
 
-
-        with open(os.path.join(temp_directory, "llvm-c/Deprecated.h"), "w") as deprecated_h:
-            deprecated_h.write("""
+        (temp_directory / "llvm-c" / "Deprecated.h").write_text("""
 #ifndef LLVM_C_DEPRECATED_H
 #define LLVM_C_DEPRECATED_H
 #endif /* LLVM_C_DEPRECATED_H */
 # define LLVM_ATTRIBUTE_C_DEPRECATED(decl, message) decl
 """)
 
-        if os.path.exists(os.path.join(temp_directory, "llvm-c/blake3.h")):
-            os.remove(os.path.join(temp_directory, "llvm-c/blake3.h"))
+        blake3_h = temp_directory / "llvm-c" / "blake3.h"
+        if blake3_h.exists():
+            blake3_h.unlink()
 
         # Create all.c, a C file including all the headers
-        all_c_path = os.path.join(temp_directory, "all.c")
-        all_includes = "#include \""
-        all_includes += "\"\n#include \"".join(include_files) + "\""
-        with open(all_c_path, "w") as all_c:
-            all_c.write("typedef long unsigned int size_t;\n")
-            all_c.write("typedef int off_t;\n")
-            all_c.write(all_includes + "\n")
+        all_c = """
+typedef long unsigned int size_t;
+typedef int off_t;
+"""
+        all_c += "#include \""
+        all_c += "\"\n#include \"".join(include_files) + "\""
+        all_c += "\n"
+        all_c_path = temp_directory / "all.c"
+        all_c_path.write_text(all_c)
 
         # Preprocess all.c
-        all_c_preprocessed = os.path.join(temp_directory, "all.prep.c")
+        all_c_preprocessed = temp_directory / "all.prep.c"
         subprocess.check_call([cpp,
                                "-U__GNUC__",
-                               "-I" + temp_directory,
-                               "-I" + llvm_include_dir,
+                               "-I" + str(temp_directory),
+                               "-I" + str(llvm_include_dir),
                                "-E",
-                               "-o" + all_c_preprocessed,
-                               all_c_path])
+                               "-o" + str(all_c_preprocessed),
+                               str(all_c_path)])
 
         # Parse enum definitions
         enums = handle_enums(all_c_preprocessed)
 
         # Let CFFI parse the preprocessed header
-        with open(all_c_preprocessed) as c_file:
-            ffi.cdef(c_file.read(), override=True)
+        assert ffi is not None
+        ffi.cdef(all_c_preprocessed.read_text(), override=True)
 
         # Compile the CFFI data and save them so we can return it
-        ffi.set_source("ffi", None)
-        ffi.compile(temp_directory)
-        ffi_code = open(os.path.join(temp_directory, "ffi.py"), "r").read()
+        ffi.set_source("ffi", None) # type: ignore
+        ffi.compile(str(temp_directory))
+
+        ffi_code = (temp_directory / "ffi.py").read_text()
 
     finally:
         # Cleanup
         shutil.rmtree(temp_directory)
 
     # Create a list of the LLVM libraries and dlopen them
-    def basename(x):
-        result = os.path.basename(x)
+    def basename(x: Path) -> str:
+        result = x.name
         result = os.path.splitext(result)[0]
         result = result.replace(".", "")
         result = result.replace("-", "")
         return result
 
-    libs = zip(lib_files,
-               map(basename, lib_files),
-               map(ffi.dlopen, lib_files))
+    libs = [(lib_file, basename(lib_file), ffi.dlopen(str(lib_file))) for lib_file in lib_files]
 
-    return list(libs), ffi_code, enums
+    return libs, ffi_code, enums
 
-def handle_enums(all_c_preprocessed):
+def handle_enums(all_c_preprocessed: Path) -> MutableMapping[str, EnumMap]:
     """
     Parse enum typedefs and return a dictionary mapping from typedefs to values
     as well as from values to the integer representation of the enum.
@@ -559,11 +571,12 @@ def handle_enums(all_c_preprocessed):
     }
 
     """
-    def remove_prefix(name):
+    def remove_prefix(name: str) -> str:
         if name.startswith("LLVM") and not name.startswith("LLVM_"):
             return name[4:]
+        return name
 
-    def handle_expression(variables, expression):
+    def handle_expression(variables, expression) -> int:
         expression_type = type(expression)
         if expression_type is pycparser.c_ast.Constant:
             return int(expression.value.rstrip("U"), 0)
@@ -592,36 +605,21 @@ def handle_enums(all_c_preprocessed):
 
     class EnumVisitor(pycparser.c_ast.NodeVisitor):
         def __init__(self):
-            self._name = None
-            self.enums = {}
+            self._name: Optional[str] = None
+            self.enums: MutableMapping[str, EnumMap] = {}
 
-        def visit_Typedef(self, typedef):
+        def visit_Typedef(self, typedef) -> None:
             self._name = remove_prefix(typedef.name)
             self.generic_visit(typedef)
 
-        def visit_EnumeratorList(self, enum_list):
-            values = {}
-            last = -1
-            for enumerator in enum_list.children():
-                enumerator = enumerator[1]
-                assert type(enumerator) is pycparser.c_ast.Enumerator
-                value = enumerator.value
-                if value is None:
-                    values[enumerator.name] = last + 1
-                else:
-                    values[enumerator.name] = handle_expression(values, value)
-
-                last = values[enumerator.name]
-                enumerator.value = pycparser.c_ast.Constant("int", str(last))
-
-        def visit_EnumeratorList(self, enum_list):
+        def visit_EnumeratorList(self, enum_list) -> None:
             # Check if we are in a typedef scope
             if self._name is not None:
                 value = 0
-                mapping = {}
-                context = {}
+                mapping: MutableMapping[Union[int, str], Union[int, str]] = {}
+                context: MutableMapping[str, int] = {}
                 for enum in enum_list.enumerators:
-                    assert type(enum) is pycparser.c_ast.Enumerator
+                    assert isinstance(enum, pycparser.c_ast.Enumerator)
 
                     # Check if enum has defined a value
                     if enum.value is not None:
@@ -638,7 +636,7 @@ def handle_enums(all_c_preprocessed):
                     context[enum.name] = value
 
                     # Rewrite using a constant
-                    enum.value = pycparser.c_ast.Constant("int", str(value))
+                    enum.value = pycparser.c_ast.Constant("int", str(value)) # type: ignore
 
                     value += 1
 
@@ -647,24 +645,21 @@ def handle_enums(all_c_preprocessed):
                 # Clear the scope
                 self._name = None
 
-    with open(all_c_preprocessed) as f:
-        ast, _, _ = cffi.cparser.Parser()._parse(f.read())
+    ast, _, _ = cffi.cparser.Parser()._parse(all_c_preprocessed.read_text()) # type: ignore
 
     visitor = EnumVisitor()
     visitor.visit(ast)
 
-    with open(all_c_preprocessed, "w") as f:
-        generator = pycparser.c_generator.CGenerator()
-        f.write(generator.visit(ast).replace("__dotdotdot__", "foo"))
+    generator = pycparser.c_generator.CGenerator()
+    all_c_preprocessed.write_text(generator.visit(ast).replace("__dotdotdot__", "foo"))
 
     return visitor.enums
 
-def generate_wrapper():
+def generate_wrapper(output_path: Path) -> None:
     """Force the (re-)generation of the wrapper module for the current LLVM
     installation"""
+
     global ffi
-    global cached_module
-    output_path = cached_module
     ffi = FFI()
 
     libs, ffi_code, enums = parse_headers()
@@ -673,9 +668,9 @@ def generate_wrapper():
         raise ValueError("No valid LLVM libraries found' \
             ', LLVM must be built with BUILD_SHARED_LIBS")
 
-    classes = defaultdict(list)
-    global_functions = []
-    constants = []
+    classes: Classes = defaultdict(list)
+    global_functions: List[Tuple[str, str, Any]] = []
+    constants: List[Tuple[str, int]] = []
 
     # Loop over all the LLVM libraries
     for _, library_name, library in libs:
@@ -683,41 +678,37 @@ def generate_wrapper():
         # will actually be available
         for name in dir(library):
             # A library contains only some methods, find out which ones
-            fail = False
-            try:
+            if hasattr(library, name):
                 field = getattr(library, name)
-            except AttributeError:
-                fail = True
+                if isinstance(field, int):
+                    constants.append((name, field))
 
-            if not fail and type(field) is int:
-                constants.append((name, field))
+                elif isinstance(field, FFI.CData):
+                    # Is this a usable function?
+                    # Is the first argument an LLVM object? Did we ever see it
+                    # before?
+                    prototype = ffi.typeof(field)
+                    args = prototype.args
+                    if len(args) > 0 and args[0].kind == "pointer":
+                        arg0_type = args[0].item
+                        if (arg0_type.kind == "struct"
+                            and is_llvm_type(arg0_type.cname)):
 
-            # Is this a usable function?
-            if not fail and isinstance(field, FFI.CData):
-                # Is the first argument an LLVM object? Did we ever see it
-                # before?
-                prototype = ffi.typeof(field)
-                args = prototype.args
-                if len(args) > 0 and args[0].kind == "pointer":
-                    arg0_type = args[0].item
-                    if (arg0_type.kind == "struct"
-                        and is_llvm_type(arg0_type.cname)):
+                            if not [1 for x in classes[arg0_type.cname]
+                                    if x[1] == name]:
+                                # Associate to the name of the LLVM object a tuple
+                                # containing the library name, the method name and
+                                # the function prototype
+                                classes[arg0_type.cname].append((library_name,
+                                                                 name,
+                                                                 prototype))
+                            continue
 
-                        if not [1 for x in classes[arg0_type.cname]
-                                if x[1] == name]:
-                            # Associate to the name of the LLVM object a tuple
-                            # containing the library name, the method name and
-                            # the function prototype
-                            classes[arg0_type.cname].append((library_name,
-                                                             name,
-                                                             prototype))
-                        continue
+                    # It doesn't fit any class
+                    if not [1 for x in global_functions if x[1] == name]:
+                        global_functions.append((library_name, name, prototype))
 
-                # It doesn't fit any class
-                if not [1 for x in global_functions if x[1] == name]:
-                    global_functions.append((library_name, name, prototype))
-
-    with open(output_path, "w") as output_file:
+    with output_path.open("w", encoding="utf8") as output_file:
         def write(string):
             output_file.write(string + "\n")
 
@@ -729,8 +720,7 @@ class LLVMException(Exception):
     pass
 """)
         for library_path, library_name, library in libs:
-            write("""{} = ffi.dlopen("{}")""".format(library_name,
-                                                     library_path))
+            write(f"""{library_name} = ffi.dlopen("{library_path}")""")
 
         # Create all the classes
         for key, value in classes.items():
@@ -741,7 +731,7 @@ class LLVMException(Exception):
             # dereferences it), when you want to use it as an out argument using
             # `out_ptr` instead (which returns a **)
             write(
-"""
+f"""
 class {class_name}(object):
     def __new__(cls, value=None):
         if value == ffi.NULL:
@@ -768,11 +758,11 @@ class {class_name}(object):
         if self.ptr[0] != ffi.NULL:
             raise RuntimeError(("Passing an already initialized object as an " +
                                 "out parameter"))
-        return self.ptr""".format(class_name=class_name, key=key))
+        return self.ptr""")
 
             # Create a dictionary for properties create function will populate
             # it
-            properties = defaultdict(lambda: (("", "None"), ("", "None")))
+            properties: Properties = defaultdict(lambda: (("", "None"), ("", "None")))
 
             for library, name, prototype in value:
                 write(create_function(library,
@@ -796,10 +786,7 @@ class {class_name}(object):
                 docstring += setter_llvm
                 docstring += "\"\"\""
 
-                write("""    {} = property({}, {}, doc={})""".format(name,
-                                                                     getter,
-                                                                     setter,
-                                                                     docstring))
+                write(f"""    {name} = property({getter}, {setter}, doc={docstring})""")
 
         # Print global functions
         write("\nif True:")
@@ -807,36 +794,39 @@ class {class_name}(object):
             write(create_function(library, name, prototype))
 
         # Print numeric constants
-        for name, value in constants:
-            if name.startswith("LLVM") and not name.startswith("LLVM_"):
-                name = name[4:]
-            write("{} = {}".format(name, str(value)))
+        for constant_name, constant_value in constants:
+            if constant_name.startswith("LLVM") and not constant_name.startswith("LLVM_"):
+                constant_name = constant_name[4:]
+            write(f"{constant_name} = {constant_value}")
 
         # Print enum conversion methods
-        for name, values in enums.items():
-            write(
-"""
-{} = {}
-""".format(name, values))
+        for enum_name, enum_values in enums.items():
+            write(f"\n{enum_name} = {enum_values}\n")
 
-unsigned_ints = set(("unsigned", "unsigned int", "unsigned long"))
+def initialize() -> str:
+    # Add to PATH the output of llvm-config --bin-dir
+    global search_paths
+    search_paths = os.environ.get("PATH", os.defpath)
+    global llvm_config
+    llvm_config = find_program("LLVM_CONFIG", ["llvm-config"])
+    assert llvm_config is not None
+    search_paths = run_llvm_config(["--bindir"]) + (search_paths and (os.pathsep + search_paths))
 
-# Add to PATH the output of llvm-config --bin-dir
-search_paths = os.environ.get("PATH", os.defpath)
-llvm_config = find_program("LLVM_CONFIG", ["llvm-config"])
-search_paths = run_llvm_config(["--bindir"]) + (search_paths and (os.pathsep + search_paths))
+    global version
+    version = run_llvm_config(["--version"])
+    to_hash = llvm_config.encode("utf-8")
+    hasher = hashlib.sha256()
+    hasher.update(to_hash)
+    cache_dir = Path(appdirs.user_cache_dir('llvmcpy')) / (hasher.hexdigest() + "-" + version)
+    llvmcpyimpl_py = cache_dir / "llvmcpyimpl.py"
+    if not llvmcpyimpl_py.exists():
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        generate_wrapper(llvmcpyimpl_py)
 
-cache_dir = appdirs.user_cache_dir('llvmcpy')
-version = run_llvm_config(["--version"])
-to_hash = llvm_config.encode("utf-8")
-hasher = hashlib.sha256()
-hasher.update(to_hash)
-cache_dir = os.path.join(cache_dir, hasher.hexdigest() + "-" + version)
-cached_module = os.path.join(cache_dir, "llvmcpyimpl.py")
-if not os.path.exists(cached_module):
-    if not os.path.exists(cache_dir):
-        os.makedirs(cache_dir)
-    generate_wrapper()
-sys.path.insert(0, cache_dir)
-from llvmcpyimpl import *
+    return str(cache_dir)
+
+module_path = initialize()
+sys.path.insert(0, module_path)
+# pylint: disable-next=import-error,wildcard-import,wrong-import-position
+from llvmcpyimpl import * # type: ignore
 del sys.path[0]
