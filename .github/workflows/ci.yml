@@ -46,7 +46,7 @@ jobs:
           pip install -e .
 
           # Run the test suite
-          python setup.py test
+          python -m llvmcpy.test
 
   test-macos:
     strategy:
@@ -86,7 +86,7 @@ jobs:
           pip install -e .
 
           # Run the test suite
-          python setup.py test
+          python -m llvmcpy.test
 
   test-llvm-versions:
     strategy:
@@ -145,5 +145,5 @@ jobs:
 
           export LLVM_CONFIG=llvm-config-${{ matrix.llvm_version }}
           python${{ matrix.python_version }} -m pip install -e .
-          python${{ matrix.python_version }} setup.py test
+          python${{ matrix.python_version }} -m llvmcpy.test
           '
