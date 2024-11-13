@@ -13,8 +13,8 @@ from pathlib import Path
 from shutil import which
 from typing import Any, List, MutableMapping, Optional, Tuple, Union
 
-import appdirs
 import cffi
+import platformdirs
 import pycparser
 import pycparser.c_generator
 from cffi import FFI
@@ -890,9 +890,8 @@ def initialize() -> str:
     to_hash = llvm_config.encode("utf-8")
     hasher = hashlib.sha256()
     hasher.update(to_hash)
-    cache_dir = Path(appdirs.user_cache_dir("llvmcpy")) / (
-        hasher.hexdigest() + "-" + version
-    )
+    dir_name = hasher.hexdigest() + "-" + version
+    cache_dir = Path(platformdirs.user_cache_dir("llvmcpy")) / dir_name
     llvmcpyimpl_py = cache_dir / "llvmcpyimpl.py"
     if not llvmcpyimpl_py.exists():
         cache_dir.mkdir(parents=True, exist_ok=True)
