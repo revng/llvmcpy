@@ -1,6 +1,6 @@
 import unittest
 
-from llvmcpy import llvm
+from llvmcpy import LLVMCPy
 
 module_source = """; ModuleID = 'example.c'
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
@@ -31,6 +31,7 @@ define i32 @main(i32, i8**) {
 }
 """
 
+llvm = LLVMCPy()
 llvm_major = int(llvm.version.split(".", 1)[0])
 
 if llvm_major >= 7:
