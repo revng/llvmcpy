@@ -1,7 +1,5 @@
 import unittest
 
-from packaging import version
-
 from llvmcpy import llvm
 
 module_source = """; ModuleID = 'example.c'
@@ -33,7 +31,9 @@ define i32 @main(i32, i8**) {
 }
 """
 
-if version.parse(llvm.version) >= version.parse("7.0"):
+llvm_major = int(llvm.version.split(".", 1)[0])
+
+if llvm_major >= 7:
     module_source = (
         module_source
         + """
@@ -100,7 +100,7 @@ class TestSuite(unittest.TestCase):
         self.assertEqual(value.get_md_string(encoding=None), string.encode("ascii"))
 
     def test_metadata_flags(self):
-        if version.parse(llvm.version) < version.parse("7.0"):
+        if llvm_major < 7:
             return
         module = load_module(module_source)
         length = llvm.ffi.new("size_t *")
