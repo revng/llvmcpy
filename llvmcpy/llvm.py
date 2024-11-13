@@ -264,7 +264,7 @@ def create_function(
             and (effective_arguments[out_arg + 1].cname == "unsigned int")
         ):
 
-            # Replace the argument with the lenght of the previous argument
+            # Replace the argument with the length of the previous argument
             arguments[out_arg + 1] = f"len(arg{out_arg})"
 
             # Remove the function argument, we know how to compute it
@@ -411,7 +411,7 @@ def create_function(
         iterated_type_name = remove_llvm_prefix(full_iterated_type_name)
         iterated_name = name[len("LLVMGetFirst") :]
 
-        # Check if we have a Somthing class
+        # Check if we have a Something class
         assert classes is not None
         if full_iterated_type_name in classes:
             # Look for the LLVMGetNextSomething method
@@ -692,8 +692,7 @@ def handle_enums(all_c_preprocessed: Path) -> MutableMapping[str, EnumMap]:
                     if name not in mapping:
                         mapping[name] = value
 
-                    # Save in the context, so that other entries can refere to
-                    # it
+                    # Save in the context, so that other entries can refer to it
                     context[enum.name] = value
 
                     # Rewrite using a constant
