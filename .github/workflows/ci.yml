@@ -74,7 +74,7 @@ jobs:
           set -xeuo pipefail
 
           # Configure environment
-          export PATH="$PATH:/opt/homebrew/bin:/opt/homebrew/opt/llvm/bin"
+          export PATH="$PATH:/opt/homebrew/bin:/opt/homebrew/opt/llvm@${{ matrix.llvm_version }}/bin"
 
           # Set up venv
           python${{ matrix.python_version }} -m venv venv
