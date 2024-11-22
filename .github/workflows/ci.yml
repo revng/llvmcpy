@@ -46,7 +46,7 @@ jobs:
           pip install -e .
 
           # Run the test suite
-          python setup.py test
+          python -m llvmcpy.tests.main
 
   test-macos:
     strategy:
@@ -74,7 +74,7 @@ jobs:
           set -xeuo pipefail
 
           # Configure environment
-          export PATH="$PATH:/opt/homebrew/bin:/opt/homebrew/opt/llvm/bin"
+          export PATH="$PATH:/opt/homebrew/bin:/opt/homebrew/opt/llvm@${{ matrix.llvm_version }}/bin"
 
           # Set up venv
           python${{ matrix.python_version }} -m venv venv
@@ -86,7 +86,7 @@ jobs:
           pip install -e .
 
           # Run the test suite
-          python setup.py test
+          python -m llvmcpy.tests.main
 
   test-llvm-versions:
     strategy:
@@ -145,5 +145,37 @@ jobs:
 
           export LLVM_CONFIG=llvm-config-${{ matrix.llvm_version }}
           python${{ matrix.python_version }} -m pip install -e .
-          python${{ matrix.python_version }} setup.py test
+          python${{ matrix.python_version }} -m llvmcpy.tests.main
           '
+
+  test-multiple-versions:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Test
+        run: |
+          set -xeuo pipefail
+
+          sudo bash -xeuo pipefail -c '
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y --no-install-recommends \
+              python3.12-venv python3.12-dev gcc \
+              llvm-17-dev llvm-18-dev
+          '
+
+          # Set up venv
+          python3.12 -m venv venv
+          source venv/bin/activate
+          python -m ensurepip
+          pip install setuptools
+
+          # Install llvmcpy
+          pip install -e .
+
+          # Run the test suite
+          python3.12 -m llvmcpy.tests.concurrent \
+            /usr/bin/llvm-config-17 /usr/bin/llvm-config-18

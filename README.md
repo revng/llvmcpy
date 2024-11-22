@@ -11,10 +11,11 @@ This project is in an early stage, but allows you to run the following code:
 
 ```python
 import sys
-from llvmcpy.llvm import *
+from llvmcpy import LLVMCPy
 
-buffer = create_memory_buffer_with_contents_of_file(sys.argv[1])
-context = get_global_context()
+llvm = LLVMCPy()
+buffer = llvm.create_memory_buffer_with_contents_of_file(sys.argv[1])
+context = llvm.get_global_context()
 module = context.parse_ir(buffer)
 for function in module.iter_functions():
     for bb in function.iter_basic_blocks():
