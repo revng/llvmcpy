@@ -537,11 +537,14 @@ def iter_{self.normalize_name(class_name, iterated_name)}s(self):
         """Parse the header files of the LLVM-C API and produce a list of libraries
         and the CFFI cached data"""
 
+        lib_files = None
         # Take the list of LLVM libraries
         for lib_file in self.libraries:
-            if lib_file.name.startswith("libLLVM."):
+            # The library file could be libLLVM.{ext} or libLLVM-{version}.{ext}
+            if lib_file.name.startswith("libLLVM.") or lib_file.name.startswith("libLLVM-"):
                 lib_files = [lib_file]
                 break
+        assert lib_files, "Could not find libLLVM!"
 
         def recursive_chmod(path: Path):
             path.chmod(0o700)
