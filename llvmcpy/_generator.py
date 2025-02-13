@@ -249,7 +249,7 @@ class Generator:
                     arguments.append(f"arg{index}.in_ptr()")
                 elif pointee.kind == "primitive" and pointee.cname == "char":
                     # char *: TODO
-                    arguments.append(f"""arg{index}.encode("utf-8")""")
+                    arguments.append(f"""encode_string(arg{index})""")
                 elif pointee.kind == "primitive":
                     # int *: TODO
                     arguments.append(f"arg{index}")
@@ -707,6 +707,10 @@ from cffi import FFI
 
 class LLVMException(Exception):
     pass
+
+def encode_string(input_):
+    assert isinstance(input_, (bytes, str))
+    return input_ if isinstance(input_, bytes) else input_.encode("utf-8")
 """
             )
             for library_path, library_name, library in libs:
