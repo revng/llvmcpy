@@ -19,6 +19,7 @@ dependencies = [
   "cffi>=1.0.0",
   "pycparser",
   "platformdirs",
+  "setuptools; python_version < '3.8'"
 ]
 
 [project.urls]

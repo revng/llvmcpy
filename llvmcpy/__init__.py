@@ -12,6 +12,17 @@ import platformdirs
 from ._generator import Generator
 
 
+def _get_version() -> str:
+    if sys.version_info < (3, 8):
+        import pkg_resources
+
+        return pkg_resources.get_distribution(__name__).version
+    else:
+        from importlib.metadata import version
+
+        return version(__name__)
+
+
 class LLVMCPy:
     def __init__(self, llvm_config: Optional[str] = None):
         self._search_paths = os.environ.get("PATH", os.defpath).split(os.pathsep)
@@ -28,8 +39,11 @@ class LLVMCPy:
             setattr(self, elem, getattr(module, elem))
 
     def _get_module(self):
-        path_hash = hashlib.sha256(self._llvm_config.encode("utf-8")).hexdigest()
-        dir_name = path_hash + "-" + self.version
+        hash_obj = hashlib.sha256()
+        hash_obj.update(self._llvm_config.encode("utf-8"))
+        hash_obj.update(b"\x00" + _get_version().encode("utf-8"))
+
+        dir_name = hash_obj.hexdigest() + "-" + self.version
         cache_dir = Path(platformdirs.user_cache_dir("llvmcpy")) / dir_name
         llvmcpyimpl_py = cache_dir / "llvmcpyimpl.py"
         if not llvmcpyimpl_py.exists():
