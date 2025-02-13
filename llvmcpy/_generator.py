@@ -537,12 +537,6 @@ def iter_{self.normalize_name(class_name, iterated_name)}s(self):
         """Parse the header files of the LLVM-C API and produce a list of libraries
         and the CFFI cached data"""
 
-        # Take the list of LLVM libraries
-        for lib_file in self.libraries:
-            if lib_file.name.startswith("libLLVM."):
-                lib_files = [lib_file]
-                break
-
         def recursive_chmod(path: Path):
             path.chmod(0o700)
             for dirpath_str, _, filenames in os.walk(str(path)):
@@ -638,7 +632,8 @@ typedef int off_t;
             return result
 
         libs = [
-            (lib_file, basename(lib_file), self.ffi.dlopen(str(lib_file))) for lib_file in lib_files
+            (lib_file, basename(lib_file), self.ffi.dlopen(str(lib_file)))
+            for lib_file in self.libraries
         ]
 
         return libs, ffi_code, enums
@@ -648,11 +643,6 @@ typedef int off_t;
         installation"""
 
         libs, ffi_code, enums = self.parse_headers()
-
-        if len(libs) == 0:
-            raise ValueError(
-                "No valid LLVM libraries found, LLVM must be built with BUILD_SHARED_LIBS"
-            )
 
         classes: Classes = defaultdict(list)
         global_functions: List[Tuple[str, str, Any]] = []
