@@ -28,3 +28,23 @@ Repository = "https://github.com/revng/llvmcpy"
 [build-system]
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.pylint.'MESSAGES CONTROL']
+disable = [
+  "missing-module-docstring",
+  "missing-class-docstring",
+  "missing-function-docstring",
+  "redefined-builtin",
+  "fixme",
+  "too-few-public-methods",
+  "too-many-locals",
+  "duplicate-code",
+  "cyclic-import",
+  "too-many-arguments",
+  "global-statement",
+  "protected-access",
+  "invalid-name",
+]
+
+[tool.mypy]
+check_untyped_defs = true
