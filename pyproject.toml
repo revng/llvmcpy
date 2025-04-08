@@ -1,7 +1,7 @@
 [project]
 name = "llvmcpy"
 description = "Python bindings for LLVM auto-generated from the LLVM-C API"
-version = "0.2.0"
+version = "0.2.1"
 readme = {file = "README.md", content-type = "text/markdown"}
 license = {text = "MIT License"}
 authors = [
@@ -19,6 +19,7 @@ dependencies = [
   "cffi>=1.0.0",
   "pycparser",
   "platformdirs",
+  "setuptools; python_version < '3.8'"
 ]
 
 [project.urls]
@@ -27,3 +28,23 @@ Repository = "https://github.com/revng/llvmcpy"
 [build-system]
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.pylint.'MESSAGES CONTROL']
+disable = [
+  "missing-module-docstring",
+  "missing-class-docstring",
+  "missing-function-docstring",
+  "redefined-builtin",
+  "fixme",
+  "too-few-public-methods",
+  "too-many-locals",
+  "duplicate-code",
+  "cyclic-import",
+  "too-many-arguments",
+  "global-statement",
+  "protected-access",
+  "invalid-name",
+]
+
+[tool.mypy]
+check_untyped_defs = true
